@@ -24,6 +24,13 @@ type ApplicationRow = {
   projects: { name: string | null } | { name: string | null }[] | null
 }
 
+type PublishedProjectRow = {
+  id: string | number
+  name: string | null
+  status: string | null
+  project_applications: { id: string | number }[] | null
+}
+
 const sidebarItems = [
   { label: "概览", icon: BriefcaseBusiness, active: true },
   { label: "我的项目", icon: FolderKanban },
@@ -82,6 +89,12 @@ const applicationStatusStyles: Record<string, string> = {
   已拒绝: "border-red-500/30 bg-red-500/12 text-red-300",
 }
 
+const projectStatusStyles: Record<string, string> = {
+  招募中: "border-amber-500/30 bg-amber-500/12 text-amber-300",
+  进行中: "border-emerald-500/30 bg-emerald-500/12 text-emerald-300",
+  已结束: "border-white/10 bg-white/5 text-white/55",
+}
+
 function formatDate(date: string | null) {
   if (!date) {
     return "刚刚"
@@ -120,7 +133,15 @@ export default async function DashboardPage() {
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
 
+  const { data: publishedProjectsData } = await supabase
+    .from("projects")
+    .select("id, name, status, project_applications(id)")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+
   const applications = (applicationsData ?? []) as ApplicationRow[]
+  const publishedProjects =
+    (publishedProjectsData ?? []) as PublishedProjectRow[]
   const userEmail = user.email ?? "user@jbgit.dev"
   const displayName =
     typeof user.user_metadata?.name === "string"
@@ -212,6 +233,57 @@ export default async function DashboardPage() {
               )
             })}
           </div>
+
+          <Card className="mt-6 rounded-xl border-white/10 bg-[#10101A] py-0 text-white shadow-none">
+            <CardHeader className="p-6 pb-2">
+              <CardTitle className="text-xl font-bold text-white">
+                我发布的项目
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 pt-4">
+              {publishedProjects.length === 0 ? (
+                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5 text-sm text-white/45">
+                  暂无发布的项目
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {publishedProjects.map((project) => {
+                    const status = project.status || "招募中"
+                    const applicationCount =
+                      project.project_applications?.length ?? 0
+
+                    return (
+                      <div
+                        key={project.id}
+                        className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <Link
+                            href={`/projects/${project.id}`}
+                            className="font-semibold text-white transition-colors hover:text-[#8D87FF]"
+                          >
+                            {project.name || "未命名项目"}
+                          </Link>
+                          <p className="mt-1 text-xs text-white/35">
+                            申请人数：{applicationCount}
+                          </p>
+                        </div>
+                        <span
+                          className={cn(
+                            "w-fit rounded-full border px-3 py-1 text-xs font-medium",
+                            projectStatusStyles[status] ??
+                              "border-white/10 bg-white/5 text-white/55",
+                          )}
+                        >
+                          {status}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <Card className="mt-6 rounded-xl border-white/10 bg-[#10101A] py-0 text-white shadow-none">
             <CardHeader className="p-6 pb-2">
