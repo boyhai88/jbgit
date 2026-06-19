@@ -1,103 +1,64 @@
 import { ChevronDown, Plus, Search, UsersRound } from "lucide-react"
 import Link from "next/link"
 
+import { SiteFooter } from "@/components/footer"
 import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { SiteFooter } from "@/components/footer"
 import { Input } from "@/components/ui/input"
+import { createClient } from "@/lib/supabase/server"
 import { cn } from "@/lib/utils"
 
-type ProjectStatus = "进行中" | "招募中" | "即将开始"
-
-type Project = {
-  id: string
-  title: string
-  description: string
-  tags: string[]
-  members: number
-  budget: string
-  updatedAt: string
-  status: ProjectStatus
+type ProjectRow = {
+  id: string | number
+  name: string | null
+  description: string | null
+  budget: string | number | null
+  skills: string[] | null
+  headcount: number | null
+  status: string | null
+  created_at: string | null
 }
 
 const filters = ["全部", "前端", "后端", "全栈", "AI", "DevOps"]
 
-const projects: Project[] = [
-  {
-    id: "PR3-001",
-    title: "开源 AI 代码审查助手",
-    description:
-      "构建基于 LLM 的 PR 审查工具，集成 GitHub Actions，支持多语言代码仓库。",
-    tags: ["React", "TypeScript", "AI"],
-    members: 4,
-    budget: "$8,500",
-    updatedAt: "2小时前更新",
-    status: "进行中",
-  },
-  {
-    id: "PR3-002",
-    title: "跨链 DeFi 聚合协议",
-    description:
-      "开发多链资产路由引擎，优化 gas 费用与滑点，需要 Rust 与智能合约经验。",
-    tags: ["Rust", "Solidity", "Web3"],
-    members: 6,
-    budget: "$12,000",
-    updatedAt: "今天更新",
-    status: "招募中",
-  },
-  {
-    id: "PR3-003",
-    title: "医疗影像标注平台",
-    description:
-      "为放射科医生提供 DICOM 标注工具，包含 AI 辅助预标注与质量控制模块。",
-    tags: ["Python", "FastAPI", "AI"],
-    members: 3,
-    budget: "$6,200",
-    updatedAt: "昨天更新",
-    status: "进行中",
-  },
-  {
-    id: "PR3-004",
-    title: "开发者文档搜索引擎",
-    description:
-      "语义化搜索 API 文档与 Stack Overflow 内容，支持 VS Code 插件集成。",
-    tags: ["Next.js", "Node.js", "Search"],
-    members: 2,
-    budget: "$4,500",
-    updatedAt: "2天前更新",
-    status: "招募中",
-  },
-  {
-    id: "PR3-005",
-    title: "边缘计算 IoT 网关",
-    description:
-      "工业传感器数据采集与边缘推理，构建低延迟协议栈与设备管理平台。",
-    tags: ["Rust", "Python", "DevOps"],
-    members: 5,
-    budget: "$9,800",
-    updatedAt: "3天前更新",
-    status: "进行中",
-  },
-  {
-    id: "PR3-006",
-    title: "NFT 创作者工具套件",
-    description:
-      "无代码 NFT 铸造与版税管理，包含创作者仪表盘与链上数据分析。",
-    tags: ["React", "Web3.js", "设计系统"],
-    members: 4,
-    budget: "$7,200",
-    updatedAt: "本周更新",
-    status: "即将开始",
-  },
-]
-
-const statusStyles: Record<ProjectStatus, string> = {
+const statusStyles: Record<string, string> = {
   进行中: "border-emerald-500/30 bg-emerald-500/12 text-emerald-400",
   招募中: "border-amber-500/30 bg-amber-500/12 text-amber-400",
   即将开始: "border-white/10 bg-white/5 text-white/48",
 }
 
-export default function ProjectsPage() {
+function formatBudget(budget: ProjectRow["budget"]) {
+  if (budget === null || budget === undefined || budget === "") {
+    return "预算待定"
+  }
+
+  if (typeof budget === "number") {
+    return `$${budget.toLocaleString()}`
+  }
+
+  return budget.startsWith("$") ? budget : `$${budget}`
+}
+
+function formatDate(date: string | null) {
+  if (!date) {
+    return "刚刚发布"
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(date))
+}
+
+export default async function ProjectsPage() {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("projects")
+    .select("*")
+    .order("created_at", { ascending: false })
+
+  const projects = (data ?? []) as ProjectRow[]
+
   return (
     <main className="min-h-screen bg-[#05050B] text-white">
       <section className="mx-auto w-full max-w-[980px] px-6 py-10">
@@ -165,63 +126,75 @@ export default function ProjectsPage() {
           {projects.length} 个项目
         </p>
 
-        <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {projects.map((project) => (
-            <Card
-              key={project.id}
-              className="min-h-[214px] rounded-xl border-white/10 bg-[#10101A] py-0 text-white shadow-none transition-colors hover:border-[#6C63FF]/45"
-            >
-              <CardContent className="flex h-full flex-col p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <span className="font-mono text-xs text-[#8D87FF]">
-                      {project.id}
-                    </span>
-                    <h2 className="mt-2 text-lg font-bold leading-7 tracking-normal text-white">
-                      {project.title}
-                    </h2>
-                  </div>
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-full border px-3 py-1 text-xs font-medium",
-                      statusStyles[project.status],
-                    )}
-                  >
-                    {project.status}
-                  </span>
-                </div>
+        {projects.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-white/10 bg-[#10101A] p-10 text-center text-white/55">
+            暂无项目
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {projects.map((project) => {
+              const status = project.status || "招募中"
+              const tags = project.skills ?? []
 
-                <p className="mt-4 min-h-[48px] text-sm leading-6 text-white/48">
-                  {project.description}
-                </p>
+              return (
+                <Card
+                  key={project.id}
+                  className="min-h-[214px] rounded-xl border-white/10 bg-[#10101A] py-0 text-white shadow-none transition-colors hover:border-[#6C63FF]/45"
+                >
+                  <CardContent className="flex h-full flex-col p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <span className="font-mono text-xs text-[#8D87FF]">
+                          PR-{String(project.id).slice(0, 6)}
+                        </span>
+                        <h2 className="mt-2 text-lg font-bold leading-7 tracking-normal text-white">
+                          {project.name || "未命名项目"}
+                        </h2>
+                      </div>
+                      <span
+                        className={cn(
+                          "shrink-0 rounded-full border px-3 py-1 text-xs font-medium",
+                          statusStyles[status] ??
+                            "border-white/10 bg-white/5 text-white/48",
+                        )}
+                      >
+                        {status}
+                      </span>
+                    </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {project.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full border border-[#6C63FF]/30 bg-[#6C63FF]/16 px-3 py-1 font-mono text-xs text-[#8D87FF]"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
+                    <p className="mt-4 min-h-[48px] text-sm leading-6 text-white/48">
+                      {project.description || "暂无项目描述"}
+                    </p>
 
-                <div className="mt-auto flex items-center justify-between border-t border-white/10 pt-4 text-sm">
-                  <div className="flex items-center gap-2 text-white/50">
-                    <UsersRound className="size-4" aria-hidden="true" />
-                    <span>{project.members} 人</span>
-                  </div>
-                  <div className="text-white/45">
-                    {project.updatedAt}
-                    <span className="ml-3 font-mono font-semibold text-emerald-400">
-                      {project.budget}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full border border-[#6C63FF]/30 bg-[#6C63FF]/16 px-3 py-1 font-mono text-xs text-[#8D87FF]"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="mt-auto flex items-center justify-between border-t border-white/10 pt-4 text-sm">
+                      <div className="flex items-center gap-2 text-white/50">
+                        <UsersRound className="size-4" aria-hidden="true" />
+                        <span>{project.headcount ?? 0} 人</span>
+                      </div>
+                      <div className="text-white/45">
+                        {formatDate(project.created_at)}
+                        <span className="ml-3 font-mono font-semibold text-emerald-400">
+                          {formatBudget(project.budget)}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
       </section>
       <SiteFooter />
     </main>
