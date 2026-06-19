@@ -1,9 +1,10 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { FormEvent, useEffect, useState } from "react"
 
 import { useAuth } from "@/components/auth/auth-provider"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -15,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { createClient } from "@/lib/supabase/client"
 
 const skills = [
   "React",
@@ -33,9 +35,17 @@ type RevenueRow = {
   percentage: string
 }
 
+type Notice = {
+  type: "success" | "error"
+  title: string
+  message: string
+}
+
 export default function PublishProjectPage() {
   const router = useRouter()
   const { loading, user } = useAuth()
+  const [notice, setNotice] = useState<Notice | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const [revenueRows, setRevenueRows] = useState<RevenueRow[]>([
     { id: 1, role: "", contribution: "", percentage: "" },
   ])
@@ -61,6 +71,63 @@ export default function PublishProjectPage() {
     setRevenueRows((rows) =>
       rows.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
     )
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const formData = new FormData(event.currentTarget)
+    const name = String(formData.get("projectName") ?? "").trim()
+    const description = String(formData.get("description") ?? "").trim()
+    const budget = String(formData.get("budget") ?? "").trim()
+    const selectedSkills = formData.getAll("skills").map(String)
+    const headcount = String(formData.get("headcount") ?? "").trim()
+
+    if (
+      !name ||
+      !description ||
+      !budget ||
+      selectedSkills.length === 0 ||
+      !headcount
+    ) {
+      setNotice({
+        type: "error",
+        title: "请填写所有必填字段",
+        message: "项目名称、项目描述、项目预算、技能标签和招募人数不能为空。",
+      })
+      return
+    }
+
+    setSubmitting(true)
+    setNotice(null)
+
+    const supabase = createClient()
+    const { error } = await supabase.from("projects").insert({
+      name,
+      description,
+      budget: Number(budget),
+      skills: selectedSkills,
+      headcount: Number(headcount),
+      status: "招募中",
+    })
+
+    if (error) {
+      setSubmitting(false)
+      setNotice({
+        type: "error",
+        title: "项目发布失败",
+        message: error.message,
+      })
+      return
+    }
+
+    setNotice({
+      type: "success",
+      title: "项目发布成功！",
+      message: "正在跳转到项目市场。",
+    })
+
+    router.push("/projects")
   }
 
   if (loading || !user) {
@@ -94,7 +161,20 @@ export default function PublishProjectPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form className="space-y-6">
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              {notice ? (
+                <Alert
+                  className={
+                    notice.type === "success"
+                      ? "border-[#6C63FF]/50 bg-[#6C63FF]/10 text-white"
+                      : "border-red-400/40 bg-red-500/10 text-red-100"
+                  }
+                >
+                  <AlertTitle>{notice.title}</AlertTitle>
+                  <AlertDescription>{notice.message}</AlertDescription>
+                </Alert>
+              ) : null}
+
               <div className="grid gap-5 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="project-name" className="text-white">
@@ -120,6 +200,7 @@ export default function PublishProjectPage() {
                     min="0"
                     placeholder="输入预算金额"
                     className="border-white/10 bg-black/20 text-white placeholder:text-white/35"
+                    required
                   />
                 </div>
               </div>
@@ -157,12 +238,12 @@ export default function PublishProjectPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="team-size" className="text-white">
+                <Label htmlFor="headcount" className="text-white">
                   招募人数
                 </Label>
                 <Input
-                  id="team-size"
-                  name="teamSize"
+                  id="headcount"
+                  name="headcount"
                   type="number"
                   min="1"
                   placeholder="输入招募人数"
@@ -195,6 +276,7 @@ export default function PublishProjectPage() {
                         onChange={(event) =>
                           updateRevenueRow(row.id, "role", event.target.value)
                         }
+                        name={`role-${row.id}`}
                         placeholder="角色名称"
                         className="border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
                       />
@@ -207,6 +289,7 @@ export default function PublishProjectPage() {
                             event.target.value,
                           )
                         }
+                        name={`contribution-${row.id}`}
                         placeholder="贡献类型"
                         className="border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
                       />
@@ -219,6 +302,7 @@ export default function PublishProjectPage() {
                             event.target.value,
                           )
                         }
+                        name={`percentage-${row.id}`}
                         type="number"
                         min="0"
                         max="100"
@@ -233,9 +317,10 @@ export default function PublishProjectPage() {
               <div className="flex justify-end border-t border-white/10 pt-6">
                 <Button
                   type="submit"
+                  disabled={submitting}
                   className="h-10 bg-[#6C63FF] px-6 text-white hover:bg-[#5B54E8]"
                 >
-                  发布项目
+                  {submitting ? "发布中..." : "发布项目"}
                 </Button>
               </div>
             </form>
