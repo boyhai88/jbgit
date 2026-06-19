@@ -82,10 +82,7 @@ export function UserMenu({ className, variant = "light" }: UserMenuProps) {
       <Link
         href="/auth/login"
         className={cn(
-          "rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
-          isDark
-            ? "border-white/15 text-white/80 hover:bg-white/10 hover:text-white"
-            : "border-[#6C63FF]/20 text-[#272343] hover:bg-[#6C63FF]/10 hover:text-[#6C63FF] dark:border-white/15 dark:text-white/80 dark:hover:bg-white/10 dark:hover:text-white",
+          "rounded-lg border border-[#6C63FF] bg-[#6C63FF] px-4 py-2 text-sm font-medium text-white shadow-[0_12px_28px_rgba(108,99,255,0.24)] transition-colors hover:border-[#5B54E8] hover:bg-[#5B54E8]",
           className,
         )}
       >

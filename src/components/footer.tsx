@@ -15,7 +15,7 @@ const footerColumns = [
   },
 ]
 
-export function SiteFooter() {
+export function Footer() {
   return (
     <footer className="border-t border-white/10 bg-[#0B0B12]">
       <div className="mx-auto grid w-full max-w-[980px] gap-8 px-6 py-8 md:grid-cols-[1.25fr_1.75fr]">
@@ -58,4 +58,8 @@ export function SiteFooter() {
       </div>
     </footer>
   )
+}
+
+export function SiteFooter() {
+  return <Footer />
 }

@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { SiteFooter } from "@/components/footer"
+import { Footer } from "@/components/footer"
 import { cn } from "@/lib/utils"
 
 const platformStats = [
@@ -42,57 +42,37 @@ const features = [
 export default function Home() {
   return (
     <main className="min-h-screen bg-[#05050B] text-white">
-      <section className="border-b border-white/10 bg-[radial-gradient(circle_at_85%_0%,rgba(108,99,255,0.2),transparent_30rem)]">
-        <div className="mx-auto grid w-full max-w-[980px] items-center gap-10 px-6 py-12 lg:grid-cols-[1.05fr_0.95fr]">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/38">
-              GLOBAL DEVELOPER PLATFORM
-            </p>
-            <h1 className="mt-5 max-w-[620px] text-4xl font-black leading-tight tracking-normal md:text-5xl">
-              连接全球开发者，让技能创造价值
-            </h1>
-            <p className="mt-5 max-w-[610px] text-base leading-7 text-white/58">
-              JBGIT是面向独立开发者与远程团队的协作平台。智能匹配技能、透明收益分成，让每一次代码贡献都获得应有回报。
-            </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Link
-                href="/auth/login"
-                className={cn(
-                  buttonVariants({ size: "lg" }),
-                  "h-11 rounded-lg bg-[#6C63FF] px-6 text-white shadow-[0_14px_34px_rgba(108,99,255,0.28)] hover:bg-[#5B54E8]",
-                )}
-              >
-                立即加入
-              </Link>
-              <Link
-                href="/projects"
-                className={cn(
-                  buttonVariants({ size: "lg", variant: "outline" }),
-                  "h-11 rounded-lg border-white/15 bg-transparent px-6 text-white/82 hover:bg-white/8 hover:text-white",
-                )}
-              >
-                浏览项目
-              </Link>
-            </div>
+      <section className="border-b border-white/10 bg-[radial-gradient(circle_at_84%_0%,rgba(108,99,255,0.2),transparent_30rem)]">
+        <div className="mx-auto w-full max-w-[980px] px-6 py-12">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/38">
+            GLOBAL DEVELOPER PLATFORM
+          </p>
+          <h1 className="mt-5 max-w-[680px] text-4xl font-black leading-tight tracking-normal md:text-5xl">
+            连接全球开发者，让技能创造价值
+          </h1>
+          <p className="mt-5 max-w-[680px] text-base leading-7 text-white/58">
+            JBGIT是面向独立开发者与远程团队的协作平台。智能匹配技能、透明收益分成，让每一次代码贡献都获得应有回报。
+          </p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <Link
+              href="/auth/login"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "h-11 rounded-lg bg-[#6C63FF] px-6 text-white shadow-[0_14px_34px_rgba(108,99,255,0.28)] hover:bg-[#5B54E8]",
+              )}
+            >
+              立即加入
+            </Link>
+            <Link
+              href="/projects"
+              className={cn(
+                buttonVariants({ size: "lg", variant: "outline" }),
+                "h-11 rounded-lg border-white/15 bg-transparent px-6 text-white/82 hover:bg-white/8 hover:text-white",
+              )}
+            >
+              浏览项目
+            </Link>
           </div>
-
-          <Card className="rounded-xl border-white/10 bg-[#10101A]/88 py-0 text-white shadow-none">
-            <CardContent className="grid gap-4 p-5 sm:grid-cols-3 lg:grid-cols-1">
-              {platformStats.map((stat) => (
-                <div
-                  key={stat.label}
-                  className="rounded-lg border border-white/10 bg-white/[0.03] p-4"
-                >
-                  <div className="font-mono text-3xl font-semibold text-[#8D87FF]">
-                    {stat.value}
-                  </div>
-                  <div className="mt-2 text-sm text-white/48">
-                    {stat.label}
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
         </div>
       </section>
 
@@ -150,7 +130,31 @@ export default function Home() {
         </div>
       </section>
 
-      <SiteFooter />
+      <section className="mx-auto w-full max-w-[980px] px-6 pb-12">
+        <Card className="rounded-xl border-white/10 bg-[#151426] py-0 text-white shadow-none">
+          <CardContent className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-2xl font-black tracking-normal">
+                准备好让技能产生价值了吗？
+              </h2>
+              <p className="mt-2 text-sm text-white/45">
+                加入12万+全球开发者，开启你的第一个协作项目
+              </p>
+            </div>
+            <Link
+              href="/auth/login"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "h-11 shrink-0 rounded-lg bg-[#6C63FF] px-7 text-white hover:bg-[#5B54E8]",
+              )}
+            >
+              立即加入
+            </Link>
+          </CardContent>
+        </Card>
+      </section>
+
+      <Footer />
     </main>
   )
 }

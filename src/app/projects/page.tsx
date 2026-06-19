@@ -112,7 +112,7 @@ export default function ProjectsPage() {
           </div>
 
           <Link
-            href="/projects/new"
+            href="/projects/publish"
             className={cn(
               buttonVariants({ size: "lg" }),
               "h-11 rounded-lg bg-[#6C63FF] px-5 text-sm text-white shadow-[0_14px_34px_rgba(108,99,255,0.28)] hover:bg-[#5B54E8]",
