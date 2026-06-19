@@ -9,10 +9,20 @@ import {
   UsersRound,
 } from "lucide-react"
 import Link from "next/link"
+import { redirect } from "next/navigation"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SiteFooter } from "@/components/footer"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { createClient } from "@/lib/supabase/server"
 import { cn } from "@/lib/utils"
+
+type ApplicationRow = {
+  id: string | number
+  project_id: string | number
+  status: string | null
+  created_at: string | null
+  projects: { name: string | null } | { name: string | null }[] | null
+}
 
 const sidebarItems = [
   { label: "概览", icon: BriefcaseBusiness, active: true },
@@ -66,19 +76,70 @@ const activities = [
   },
 ]
 
-export default function DashboardPage() {
+const applicationStatusStyles: Record<string, string> = {
+  待审核: "border-amber-500/30 bg-amber-500/12 text-amber-300",
+  已通过: "border-emerald-500/30 bg-emerald-500/12 text-emerald-300",
+  已拒绝: "border-red-500/30 bg-red-500/12 text-red-300",
+}
+
+function formatDate(date: string | null) {
+  if (!date) {
+    return "刚刚"
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(date))
+}
+
+function getProjectName(projects: ApplicationRow["projects"]) {
+  if (Array.isArray(projects)) {
+    return projects[0]?.name || "未命名项目"
+  }
+
+  return projects?.name || "未命名项目"
+}
+
+export default async function DashboardPage() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect("/auth/login")
+  }
+
+  const { data: applicationsData } = await supabase
+    .from("project_applications")
+    .select("id, project_id, status, created_at, projects(name)")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+
+  const applications = (applicationsData ?? []) as ApplicationRow[]
+  const userEmail = user.email ?? "user@jbgit.dev"
+  const displayName =
+    typeof user.user_metadata?.name === "string"
+      ? user.user_metadata.name
+      : userEmail
+  const avatarInitial = displayName.trim().charAt(0).toUpperCase() || "U"
+
   return (
     <main className="min-h-screen bg-[#05050B] text-white">
       <div className="mx-auto flex w-full max-w-[1080px] flex-col lg:flex-row">
         <aside className="border-b border-white/10 bg-[#10101A] lg:min-h-[calc(100vh-4rem)] lg:w-[220px] lg:border-b-0 lg:border-r">
           <div className="px-6 py-7">
             <div className="flex size-14 items-center justify-center rounded-full bg-[#6C63FF] text-lg font-bold text-white shadow-[0_0_28px_rgba(108,99,255,0.32)]">
-              张
+              {avatarInitial}
             </div>
             <div className="mt-4">
-              <p className="text-lg font-bold text-white">张伟</p>
+              <p className="text-lg font-bold text-white">{displayName}</p>
               <p className="mt-1 truncate text-sm text-white/40">
-                zhangwei@jbgit.dev
+                {userEmail}
               </p>
             </div>
           </div>
@@ -118,7 +179,7 @@ export default function DashboardPage() {
             </div>
             <div className="rounded-xl border border-white/10 bg-[#10101A] px-4 py-3 text-sm text-white/58">
               当前用户：
-              <span className="ml-2 font-medium text-white">张伟</span>
+              <span className="ml-2 font-medium text-white">{displayName}</span>
             </div>
           </div>
 
@@ -151,6 +212,55 @@ export default function DashboardPage() {
               )
             })}
           </div>
+
+          <Card className="mt-6 rounded-xl border-white/10 bg-[#10101A] py-0 text-white shadow-none">
+            <CardHeader className="p-6 pb-2">
+              <CardTitle className="text-xl font-bold text-white">
+                我的申请
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 pt-4">
+              {applications.length === 0 ? (
+                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-5 text-sm text-white/45">
+                  暂无申请记录
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {applications.map((application) => {
+                    const status = application.status || "待审核"
+
+                    return (
+                      <div
+                        key={application.id}
+                        className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <Link
+                            href={`/projects/${application.project_id}`}
+                            className="font-semibold text-white transition-colors hover:text-[#8D87FF]"
+                          >
+                            {getProjectName(application.projects)}
+                          </Link>
+                          <p className="mt-1 text-xs text-white/35">
+                            申请时间：{formatDate(application.created_at)}
+                          </p>
+                        </div>
+                        <span
+                          className={cn(
+                            "w-fit rounded-full border px-3 py-1 text-xs font-medium",
+                            applicationStatusStyles[status] ??
+                              "border-white/10 bg-white/5 text-white/55",
+                          )}
+                        >
+                          {status}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <Card className="mt-6 rounded-xl border-white/10 bg-[#10101A] py-0 text-white shadow-none">
             <CardHeader className="p-6 pb-2">
