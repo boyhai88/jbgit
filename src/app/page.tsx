@@ -1,28 +1,156 @@
-import { Button } from "@/components/ui/button";
+import { BrainCircuit, CircleDollarSign, FolderKanban } from "lucide-react"
+import Link from "next/link"
+
+import { buttonVariants } from "@/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/components/ui/card"
+import { SiteFooter } from "@/components/footer"
+import { cn } from "@/lib/utils"
+
+const platformStats = [
+  { value: "128,400+", label: "注册开发者" },
+  { value: "18,920", label: "已完成项目" },
+  { value: "$42.6M", label: "总交易额" },
+]
+
+const features = [
+  {
+    title: "智能匹配",
+    description:
+      "基于技能图谱与项目需求的AI匹配引擎，自动推荐最适合你的协作机会，减少沟通成本。",
+    icon: BrainCircuit,
+  },
+  {
+    title: "项目协作",
+    description:
+      "内置代码审查、任务看板、实时沟通与版本追踪，让远程团队保持高效同步。",
+    icon: FolderKanban,
+  },
+  {
+    title: "收益分成",
+    description:
+      "透明的收益分配方案，按贡献自动结算，保障每位成员的长期权益。",
+    icon: CircleDollarSign,
+  },
+]
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
-      <Card className="w-full max-w-md text-center">
-        <CardHeader className="space-y-3">
-          <CardTitle className="text-4xl font-bold tracking-normal">
-            JBGIT
-          </CardTitle>
-          <CardDescription className="text-base">
-            全球开发者协作平台
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button className="w-full sm:w-auto">开始使用</Button>
-        </CardContent>
-      </Card>
+    <main className="min-h-screen bg-[#05050B] text-white">
+      <section className="border-b border-white/10 bg-[radial-gradient(circle_at_85%_0%,rgba(108,99,255,0.2),transparent_30rem)]">
+        <div className="mx-auto grid w-full max-w-[980px] items-center gap-10 px-6 py-12 lg:grid-cols-[1.05fr_0.95fr]">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/38">
+              GLOBAL DEVELOPER PLATFORM
+            </p>
+            <h1 className="mt-5 max-w-[620px] text-4xl font-black leading-tight tracking-normal md:text-5xl">
+              连接全球开发者，让技能创造价值
+            </h1>
+            <p className="mt-5 max-w-[610px] text-base leading-7 text-white/58">
+              JBGIT是面向独立开发者与远程团队的协作平台。智能匹配技能、透明收益分成，让每一次代码贡献都获得应有回报。
+            </p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Link
+                href="/auth/login"
+                className={cn(
+                  buttonVariants({ size: "lg" }),
+                  "h-11 rounded-lg bg-[#6C63FF] px-6 text-white shadow-[0_14px_34px_rgba(108,99,255,0.28)] hover:bg-[#5B54E8]",
+                )}
+              >
+                立即加入
+              </Link>
+              <Link
+                href="/projects"
+                className={cn(
+                  buttonVariants({ size: "lg", variant: "outline" }),
+                  "h-11 rounded-lg border-white/15 bg-transparent px-6 text-white/82 hover:bg-white/8 hover:text-white",
+                )}
+              >
+                浏览项目
+              </Link>
+            </div>
+          </div>
+
+          <Card className="rounded-xl border-white/10 bg-[#10101A]/88 py-0 text-white shadow-none">
+            <CardContent className="grid gap-4 p-5 sm:grid-cols-3 lg:grid-cols-1">
+              {platformStats.map((stat) => (
+                <div
+                  key={stat.label}
+                  className="rounded-lg border border-white/10 bg-white/[0.03] p-4"
+                >
+                  <div className="font-mono text-3xl font-semibold text-[#8D87FF]">
+                    {stat.value}
+                  </div>
+                  <div className="mt-2 text-sm text-white/48">
+                    {stat.label}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <section className="border-b border-white/10 bg-[#0B0B12]">
+        <div className="mx-auto grid w-full max-w-[980px] grid-cols-1 gap-4 px-6 py-8 text-center sm:grid-cols-3">
+          {platformStats.map((stat) => (
+            <Card
+              key={stat.label}
+              className="rounded-xl border-white/10 bg-[#11111D] py-0 text-white shadow-none"
+            >
+              <CardContent className="p-5">
+                <div className="font-mono text-3xl font-semibold text-[#6C63FF]">
+                  {stat.value}
+                </div>
+                <div className="mt-2 text-sm text-white/45">{stat.label}</div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-[980px] px-6 py-10">
+        <div className="mb-6">
+          <h2 className="text-2xl font-black tracking-normal text-white">
+            三大核心功能
+          </h2>
+          <p className="mt-2 text-sm text-white/45">
+            从发现机会到协作交付，JBGIT覆盖开发者技能变现的完整流程。
+          </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          {features.map((feature) => {
+            const Icon = feature.icon
+
+            return (
+              <Card
+                key={feature.title}
+                className="rounded-xl border-white/10 bg-[#10101A] py-0 text-white shadow-none"
+              >
+                <CardHeader className="p-5">
+                  <div className="mb-4 flex size-10 items-center justify-center rounded-lg bg-[#6C63FF]/18 text-[#8D87FF]">
+                    <Icon className="size-5" aria-hidden="true" />
+                  </div>
+                  <CardTitle className="text-lg font-bold text-white">
+                    {feature.title}
+                  </CardTitle>
+                  <CardDescription className="pt-2 text-sm leading-6 text-white/48">
+                    {feature.description}
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            )
+          })}
+        </div>
+      </section>
+
+      <SiteFooter />
     </main>
-  );
+  )
 }
