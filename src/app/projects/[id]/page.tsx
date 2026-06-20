@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { FormEvent, useEffect, useState } from "react"
 
 import { useAuth } from "@/components/auth/auth-provider"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 
@@ -44,6 +45,16 @@ type Milestone = {
   due_date: string | null
 }
 
+type Review = {
+  id: string | number
+  reviewer_id: string | null
+  reviewee_id: string | null
+  rating: number | null
+  category: string | null
+  comment: string | null
+  created_at: string | null
+}
+
 type Notice = {
   type: "success" | "error"
   title: string
@@ -60,6 +71,8 @@ const milestoneStatusStyles: Record<string, string> = {
   进行中: "border-blue-500/40 bg-blue-500/15 text-blue-300",
   已完成: "border-emerald-500/40 bg-emerald-500/15 text-emerald-300",
 }
+
+const reviewCategories = ["专业技能", "协作能力", "交付质量", "沟通效率"]
 
 function formatBudget(budget: Project["budget"]) {
   if (budget === null || budget === undefined || budget === "") {
@@ -95,6 +108,20 @@ function formatDate(date: string | null) {
   }).format(new Date(date))
 }
 
+function formatPerson(id: string | null) {
+  if (!id) {
+    return "未知用户"
+  }
+
+  return `用户 ${id.slice(0, 8)}`
+}
+
+function renderStars(rating: number | null) {
+  const value = Math.max(0, Math.min(5, rating ?? 0))
+
+  return "★".repeat(value) + "☆".repeat(5 - value)
+}
+
 export default function ProjectDetailPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
@@ -102,9 +129,15 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null)
   const [earningRules, setEarningRules] = useState<EarningRule[]>([])
   const [milestones, setMilestones] = useState<Milestone[]>([])
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [canReview, setCanReview] = useState(false)
   const [loadingProject, setLoadingProject] = useState(true)
   const [notice, setNotice] = useState<Notice | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [submittingReview, setSubmittingReview] = useState(false)
+  const [reviewRating, setReviewRating] = useState("5")
+  const [reviewCategory, setReviewCategory] = useState(reviewCategories[0])
+  const [reviewComment, setReviewComment] = useState("")
   const projectId = params.id
 
   useEffect(() => {
@@ -116,6 +149,8 @@ export default function ProjectDetailPage() {
         { data: projectData, error },
         { data: earningsData },
         { data: milestonesData },
+        { data: reviewsData },
+        { data: applicationData },
       ] = await Promise.all([
         supabase.from("projects").select("*").eq("id", projectId).single(),
         supabase
@@ -127,15 +162,31 @@ export default function ProjectDetailPage() {
           .select("id, title, description, status, due_date")
           .eq("project_id", projectId)
           .order("due_date", { ascending: true }),
+        supabase
+          .from("user_reviews")
+          .select("*")
+          .eq("project_id", projectId)
+          .order("created_at", { ascending: false }),
+        user
+          ? supabase
+              .from("project_applications")
+              .select("id, status")
+              .eq("project_id", projectId)
+              .eq("user_id", user.id)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
       ])
 
       if (!mounted) {
         return
       }
 
-      setProject(error || !projectData ? null : (projectData as Project))
+      const loadedProject = error || !projectData ? null : (projectData as Project)
+      setProject(loadedProject)
       setEarningRules((earningsData ?? []) as EarningRule[])
       setMilestones((milestonesData ?? []) as Milestone[])
+      setReviews((reviewsData ?? []) as Review[])
+      setCanReview(Boolean(user && (loadedProject?.user_id === user.id || applicationData)))
       setLoadingProject(false)
     }
 
@@ -147,13 +198,15 @@ export default function ProjectDetailPage() {
       setProject(null)
       setEarningRules([])
       setMilestones([])
+      setReviews([])
+      setCanReview(false)
       setLoadingProject(false)
     })
 
     return () => {
       mounted = false
     }
-  }, [projectId])
+  }, [projectId, user])
 
   async function handleApply() {
     if (authLoading) {
@@ -210,6 +263,64 @@ export default function ProjectDetailPage() {
       type: "success",
       title: "申请已提交，等待审核",
       message: "项目发起人审核后会与你联系。",
+    })
+  }
+
+  async function handleSubmitReview(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!user || !project) {
+      router.push("/auth/login")
+      return
+    }
+
+    const comment = reviewComment.trim()
+
+    if (!comment) {
+      setNotice({
+        type: "error",
+        title: "请填写评语",
+        message: "评价内容不能为空。",
+      })
+      return
+    }
+
+    setSubmittingReview(true)
+    setNotice(null)
+
+    const supabase = createClient()
+    const reviewPayload = {
+      project_id: projectId,
+      reviewer_id: user.id,
+      reviewee_id: project.user_id ?? user.id,
+      rating: Number(reviewRating),
+      category: reviewCategory,
+      comment,
+    }
+
+    const { data, error } = await supabase
+      .from("user_reviews")
+      .insert(reviewPayload)
+      .select("*")
+      .single()
+
+    setSubmittingReview(false)
+
+    if (error) {
+      setNotice({
+        type: "error",
+        title: "评价提交失败",
+        message: error.message,
+      })
+      return
+    }
+
+    setReviews((current) => [data as Review, ...current])
+    setReviewComment("")
+    setNotice({
+      type: "success",
+      title: "评价已发布",
+      message: "感谢你的反馈。",
     })
   }
 
@@ -440,6 +551,131 @@ export default function ProjectDetailPage() {
                       <span className="text-right font-mono text-[#8D87FF]">
                         {formatPercentage(rule)}
                       </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-gray-800 bg-black/20 p-6 shadow-md">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-white">项目评价</h2>
+                  <p className="mt-2 text-base leading-relaxed text-white/45">
+                    项目参与者的协作反馈和交付评价
+                  </p>
+                </div>
+                {canReview ? (
+                  <span className="rounded-full border border-[#6C63FF]/30 bg-[#6C63FF]/15 px-3 py-1 text-xs text-[#8D87FF]">
+                    可发表评价
+                  </span>
+                ) : null}
+              </div>
+
+              {canReview ? (
+                <form
+                  className="mt-6 rounded-xl border border-gray-800 bg-white/[0.03] p-5"
+                  onSubmit={handleSubmitReview}
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="grid gap-2 text-sm text-white/70">
+                      评分
+                      <select
+                        value={reviewRating}
+                        onChange={(event) => setReviewRating(event.target.value)}
+                        className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
+                      >
+                        {[1, 2, 3, 4, 5].map((rating) => (
+                          <option
+                            key={rating}
+                            value={rating}
+                            className="bg-[#11111D]"
+                          >
+                            {rating} 星
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="grid gap-2 text-sm text-white/70">
+                      分类
+                      <select
+                        value={reviewCategory}
+                        onChange={(event) =>
+                          setReviewCategory(event.target.value)
+                        }
+                        className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
+                      >
+                        {reviewCategories.map((category) => (
+                          <option
+                            key={category}
+                            value={category}
+                            className="bg-[#11111D]"
+                          >
+                            {category}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <Textarea
+                    value={reviewComment}
+                    onChange={(event) => setReviewComment(event.target.value)}
+                    placeholder="写下你的协作体验、交付反馈或专业评价"
+                    className="mt-4 min-h-28 border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
+                  />
+
+                  <div className="mt-4 flex justify-end">
+                    <Button
+                      type="submit"
+                      disabled={submittingReview}
+                      className="bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
+                    >
+                      {submittingReview ? "提交中..." : "发表评价"}
+                    </Button>
+                  </div>
+                </form>
+              ) : null}
+
+              {reviews.length === 0 ? (
+                <div className="mt-6 rounded-xl border border-gray-800 bg-white/[0.03] p-5 text-base text-white/45">
+                  暂无评价
+                </div>
+              ) : (
+                <div className="mt-6 space-y-4">
+                  {reviews.map((review) => (
+                    <div
+                      key={review.id}
+                      className="rounded-xl border border-gray-800 bg-white/[0.03] p-5 shadow-md"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <span className="font-semibold text-white">
+                              {formatPerson(review.reviewer_id)}
+                            </span>
+                            <span className="text-sm text-white/35">评价</span>
+                            <span className="font-semibold text-white">
+                              {formatPerson(review.reviewee_id)}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-3">
+                            <span className="font-mono text-sm text-[#8D87FF]">
+                              {renderStars(review.rating)}
+                            </span>
+                            <span className="rounded-full border border-[#6C63FF]/30 bg-[#6C63FF]/15 px-3 py-1 text-xs text-[#8D87FF]">
+                              {review.category || "未分类"}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-xs text-white/35">
+                          {formatDate(review.created_at)}
+                        </span>
+                      </div>
+                      <p className="mt-4 text-base leading-relaxed text-white/60">
+                        {review.comment || "暂无评语"}
+                      </p>
                     </div>
                   ))}
                 </div>
