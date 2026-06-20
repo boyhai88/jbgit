@@ -32,11 +32,11 @@ type PublishedProjectRow = {
 }
 
 const sidebarItems = [
-  { label: "概览", icon: BriefcaseBusiness, active: true },
-  { label: "我的项目", icon: FolderKanban },
-  { label: "参与的团队", icon: UsersRound },
-  { label: "收益记录", icon: CircleDollarSign },
-  { label: "账户设置", icon: Settings },
+  { label: "概览", href: "/dashboard", icon: BriefcaseBusiness, active: true },
+  { label: "我的项目", href: "/projects", icon: FolderKanban },
+  { label: "参与的团队", href: "/projects", icon: UsersRound },
+  { label: "收益记录", href: "/dashboard/earnings", icon: CircleDollarSign },
+  { label: "账户设置", href: "/profile", icon: Settings },
 ]
 
 const stats = [
@@ -65,21 +65,25 @@ const activities = [
     title: "开源 AI 代码审查助手完成 UI 评审",
     description: "你提交的 Dashboard 原型已被 Lin Chen 标记为通过。",
     time: "15 分钟前",
+    href: "/projects/1",
   },
   {
     title: "跨链 DeFi 聚合协议邀请你加入",
     description: "项目发起人希望你负责路由监控面板前端开发。",
     time: "2 小时前",
+    href: "/projects/2",
   },
   {
-    title: "收益分成已结算",
+    title: "医疗影像标注平台收益分成已结算",
     description: "医疗影像标注平台里程碑 2 已完成，分成 $620 已入账。",
     time: "昨天",
+    href: "/projects/3",
   },
   {
-    title: "新协作者加入团队",
-    description: "Maria R. 加入开源 AI 代码审查助手 DevOps 小组。",
+    title: "测试项目-001 有新协作者申请",
+    description: "新的协作者申请已进入待审核队列。",
     time: "3 天前",
+    href: "/projects/1",
   },
 ]
 
@@ -172,9 +176,9 @@ export default async function DashboardPage() {
               return (
                 <Link
                   key={item.label}
-                  href={item.active ? "/dashboard" : "#"}
+                  href={item.href}
                   className={cn(
-                    "flex min-w-max items-center gap-3 px-6 py-4 text-sm font-medium transition-colors lg:min-w-0",
+                    "flex min-w-max items-center gap-3 px-6 py-4 text-sm font-medium transition-colors hover:underline lg:min-w-0",
                     item.active
                       ? "border-b-4 border-[#6C63FF] bg-[#6C63FF]/18 text-[#8D87FF] lg:border-b-0 lg:border-l-4"
                       : "text-white/45 hover:bg-white/5 hover:text-white",
@@ -260,9 +264,9 @@ export default async function DashboardPage() {
                         <div className="min-w-0">
                           <Link
                             href={`/projects/${project.id}`}
-                            className="font-semibold text-white transition-colors hover:text-[#8D87FF]"
+                            className="font-semibold text-white transition-colors hover:text-[#8D87FF] hover:underline"
                           >
-                            {project.name || "未命名项目"}
+                            {project.name || "测试项目-001"}
                           </Link>
                           <p className="mt-1 text-xs text-white/35">
                             申请人数：{applicationCount}
@@ -309,7 +313,7 @@ export default async function DashboardPage() {
                         <div className="min-w-0">
                           <Link
                             href={`/projects/${application.project_id}`}
-                            className="font-semibold text-white transition-colors hover:text-[#8D87FF]"
+                            className="font-semibold text-white transition-colors hover:text-[#8D87FF] hover:underline"
                           >
                             {getProjectName(application.projects)}
                           </Link>
@@ -357,9 +361,12 @@ export default async function DashboardPage() {
                     </div>
                     <div className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.03] p-4">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <h2 className="font-semibold text-white">
+                        <Link
+                          href={activity.href}
+                          className="font-semibold text-white transition-colors hover:text-[#8D87FF] hover:underline"
+                        >
                           {activity.title}
-                        </h2>
+                        </Link>
                         <span className="text-xs text-white/35">
                           {activity.time}
                         </span>
