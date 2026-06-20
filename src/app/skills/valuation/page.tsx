@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 
 import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
@@ -87,10 +88,16 @@ function formatCurrency(value: number) {
 
 export default function SkillValuationPage() {
   const { loading, user } = useAuth()
+  const router = useRouter()
   const [stack, setStack] = useState("React")
   const [years, setYears] = useState("3")
   const [result, setResult] = useState<ValuationResult | null>(null)
   const [loginMessage, setLoginMessage] = useState(false)
+  const metadata = user?.user_metadata ?? {}
+  const isSubscribed =
+    metadata.is_subscribed === true ||
+    metadata.subscribed === true ||
+    metadata.subscription_status === "active"
 
   function handleValuation() {
     if (!loading && !user) {
@@ -101,6 +108,10 @@ export default function SkillValuationPage() {
 
     setLoginMessage(false)
     setResult(calculateValuation(stack, years))
+  }
+
+  function handleUnlockReport() {
+    router.push("/payment?plan=skill-valuation")
   }
 
   return (
@@ -182,9 +193,53 @@ export default function SkillValuationPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-6 pt-4">
-              {loginMessage ? (
+              {loginMessage || (!loading && !user) ? (
                 <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-[#6C63FF]/35 bg-[#6C63FF]/10 text-sm font-medium text-white">
-                  请登录查看完整估值
+                  请登录查看技能估值
+                </div>
+              ) : loading ? (
+                <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-sm text-white/45">
+                  正在读取登录状态...
+                </div>
+              ) : result && !isSubscribed ? (
+                <div className="space-y-5">
+                  <div className="rounded-xl border border-[#6C63FF]/35 bg-[#6C63FF]/10 p-6 text-center">
+                    <p className="text-sm text-white/45">估值分数预览</p>
+                    <p className="mt-3 font-mono text-5xl font-bold text-white">
+                      {result.score}/100
+                    </p>
+                    <p className="mt-4 text-sm leading-6 text-white/58">
+                      完整估值报告 $19/月，包含薪资建议、市场排名、技能分析
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={handleUnlockReport}
+                      className="mt-5 h-10 bg-[#6C63FF] px-6 text-white hover:bg-[#5B54E8]"
+                    >
+                      解锁完整报告
+                    </Button>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5 opacity-70">
+                      <p className="text-sm text-white/45">市场排名</p>
+                      <p className="mt-3 text-xl font-bold text-white/35">
+                        订阅后查看
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5 opacity-70">
+                      <p className="text-sm text-white/45">建议薪资范围</p>
+                      <p className="mt-3 text-xl font-bold text-white/35">
+                        订阅后查看
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5 opacity-70">
+                      <p className="text-sm text-white/45">技能分析</p>
+                      <p className="mt-3 text-xl font-bold text-white/35">
+                        订阅后查看
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ) : result ? (
                 <div className="space-y-6">
