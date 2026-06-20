@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/client"
 
-const skills = [
+const presetSkills = [
   "React",
   "TypeScript",
   "Python",
@@ -26,6 +26,56 @@ const skills = [
   "Solidity",
   "AI/ML",
   "DevOps",
+  "Next.js",
+  "Node.js",
+  "Web3",
+  "Go",
+  "Java",
+  "C++",
+  "Vue",
+  "Angular",
+]
+
+const budgetOptions = [
+  "1000",
+  "2000",
+  "3000",
+  "4000",
+  "5000",
+  "6000",
+  "7000",
+  "8000",
+  "9000",
+  "10000",
+  "20000",
+  "30000",
+  "40000",
+  "50000",
+  "60000",
+  "70000",
+  "80000",
+  "90000",
+  "100000",
+]
+
+const roleOptions = [
+  "前端开发",
+  "后端开发",
+  "全栈开发",
+  "AI工程师",
+  "DevOps工程师",
+  "产品经理",
+  "UI设计师",
+]
+
+const contributionOptions = [
+  "功能开发",
+  "页面开发",
+  "API开发",
+  "数据库设计",
+  "架构设计",
+  "测试",
+  "文档",
 ]
 
 type RevenueRow = {
@@ -46,8 +96,17 @@ export default function PublishProjectPage() {
   const { loading, user } = useAuth()
   const [notice, setNotice] = useState<Notice | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [budget, setBudget] = useState(budgetOptions[0])
+  const [customSkill, setCustomSkill] = useState("")
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([])
+  const [headcount, setHeadcount] = useState("1")
   const [revenueRows, setRevenueRows] = useState<RevenueRow[]>([
-    { id: 1, role: "", contribution: "", percentage: "" },
+    {
+      id: 1,
+      role: roleOptions[0],
+      contribution: contributionOptions[0],
+      percentage: "",
+    },
   ])
 
   useEffect(() => {
@@ -56,10 +115,53 @@ export default function PublishProjectPage() {
     }
   }, [loading, router, user])
 
+  function setPresetSkills(values: string[]) {
+    const customSkills = selectedSkills.filter(
+      (skill) => !presetSkills.includes(skill),
+    )
+
+    setSelectedSkills([...values, ...customSkills])
+  }
+
+  function addCustomSkill() {
+    const value = customSkill.trim()
+
+    if (!value) {
+      return
+    }
+
+    if (presetSkills.includes(value)) {
+      setNotice({
+        type: "error",
+        title: "请从预设标签中选择",
+        message: "该技能已在预设列表中，请直接从下拉列表选择。",
+      })
+      return
+    }
+
+    setSelectedSkills((current) =>
+      current.includes(value) ? current : [...current, value],
+    )
+    setCustomSkill("")
+  }
+
+  function toggleSkill(skill: string) {
+    setSelectedSkills((current) =>
+      current.includes(skill)
+        ? current.filter((item) => item !== skill)
+        : [...current, skill],
+    )
+  }
+
   function addRevenueRow() {
     setRevenueRows((rows) => [
       ...rows,
-      { id: Date.now(), role: "", contribution: "", percentage: "" },
+      {
+        id: Date.now(),
+        role: roleOptions[0],
+        contribution: contributionOptions[0],
+        percentage: "",
+      },
     ])
   }
 
@@ -84,9 +186,6 @@ export default function PublishProjectPage() {
     const formData = new FormData(event.currentTarget)
     const name = String(formData.get("projectName") ?? "").trim()
     const description = String(formData.get("description") ?? "").trim()
-    const budget = String(formData.get("budget") ?? "").trim()
-    const selectedSkills = formData.getAll("skills").map(String)
-    const headcount = String(formData.get("headcount") ?? "").trim()
     const earnings = revenueRows
       .map((row) => ({
         role: row.role.trim(),
@@ -119,42 +218,54 @@ export default function PublishProjectPage() {
     setNotice(null)
 
     const supabase = createClient()
+    const payload = {
+      name,
+      description,
+      budget: Number(budget),
+      skills: selectedSkills,
+      headcount: Number(headcount),
+      status: "招募中",
+      user_id: user.id,
+    }
+
+    console.log("正在插入项目：", payload)
+
     const { data: project, error: projectError } = await supabase
       .from("projects")
-      .insert({
-        name,
-        description,
-        budget: Number(budget),
-        skills: selectedSkills,
-        headcount: Number(headcount),
-        status: "招募中",
-        user_id: user.id,
-      })
+      .insert(payload)
       .select("id")
       .single()
+
+    console.log("项目插入结果：", { project, projectError })
 
     if (projectError || !project) {
       setSubmitting(false)
       setNotice({
         type: "error",
         title: "项目发布失败",
-        message: projectError?.message ?? "未能创建项目，请稍后重试。",
+        message:
+          projectError?.message ??
+          "未能创建项目，请检查 projects 表字段和 RLS 权限。",
       })
       return
     }
 
     if (earnings.length > 0) {
+      const earningPayload = earnings.map((earning) => ({
+        project_id: project.id,
+        user_id: user.id,
+        role: earning.role,
+        contribution_type: earning.contribution_type,
+        share_percent: Number(earning.share_percent),
+      }))
+
+      console.log("正在插入收益分配：", earningPayload)
+
       const { error: earningsError } = await supabase
         .from("project_earnings")
-        .insert(
-          earnings.map((earning) => ({
-            project_id: project.id,
-            user_id: user.id,
-            role: earning.role,
-            contribution_type: earning.contribution_type,
-            share_percent: Number(earning.share_percent),
-          })),
-        )
+        .insert(earningPayload)
+
+      console.log("收益分配插入结果：", { earningsError })
 
       if (earningsError) {
         setSubmitting(false)
@@ -239,15 +350,20 @@ export default function PublishProjectPage() {
                   <Label htmlFor="budget" className="text-white">
                     项目预算
                   </Label>
-                  <Input
+                  <select
                     id="budget"
                     name="budget"
-                    type="number"
-                    min="0"
-                    placeholder="输入预算金额"
-                    className="border-white/10 bg-black/20 text-white placeholder:text-white/35"
+                    value={budget}
+                    onChange={(event) => setBudget(event.target.value)}
+                    className="h-10 w-full rounded-lg border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
                     required
-                  />
+                  >
+                    {budgetOptions.map((value) => (
+                      <option key={value} value={value} className="bg-[#11111D]">
+                        {Number(value).toLocaleString()} 元
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -265,21 +381,64 @@ export default function PublishProjectPage() {
               </div>
 
               <div className="space-y-3">
-                <Label className="text-white">技能标签</Label>
-                <div className="flex flex-wrap gap-3">
-                  {skills.map((skill) => (
-                    <label key={skill} className="cursor-pointer">
-                      <input
-                        type="checkbox"
-                        name="skills"
-                        value={skill}
-                        className="peer sr-only"
-                      />
-                      <span className="inline-flex rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 transition peer-checked:border-[#6C63FF] peer-checked:bg-[#6C63FF] peer-checked:text-white hover:border-[#6C63FF]/70 hover:text-white">
-                        {skill}
-                      </span>
-                    </label>
+                <Label htmlFor="preset-skills" className="text-white">
+                  技能标签
+                </Label>
+                <select
+                  id="preset-skills"
+                  multiple
+                  value={selectedSkills.filter((skill) =>
+                    presetSkills.includes(skill),
+                  )}
+                  onChange={(event) =>
+                    setPresetSkills(
+                      Array.from(event.target.selectedOptions, (option) =>
+                        option.value,
+                      ),
+                    )
+                  }
+                  className="min-h-40 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
+                >
+                  {presetSkills.map((skill) => (
+                    <option key={skill} value={skill} className="bg-[#11111D]">
+                      {skill}
+                    </option>
                   ))}
+                </select>
+
+                <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                  <Input
+                    value={customSkill}
+                    onChange={(event) => setCustomSkill(event.target.value)}
+                    placeholder="输入预设中没有的自定义技能"
+                    className="border-white/10 bg-black/20 text-white placeholder:text-white/35"
+                  />
+                  <Button
+                    type="button"
+                    onClick={addCustomSkill}
+                    className="bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
+                  >
+                    添加自定义
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {selectedSkills.length > 0 ? (
+                    selectedSkills.map((skill) => (
+                      <button
+                        key={skill}
+                        type="button"
+                        onClick={() => toggleSkill(skill)}
+                        className="rounded-full border border-[#6C63FF]/30 bg-[#6C63FF]/16 px-3 py-1 text-xs text-[#8D87FF] transition hover:border-red-400/50 hover:text-red-200"
+                      >
+                        {skill} x
+                      </button>
+                    ))
+                  ) : (
+                    <span className="text-sm text-white/40">
+                      请至少选择或添加一个技能标签
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -287,15 +446,22 @@ export default function PublishProjectPage() {
                 <Label htmlFor="headcount" className="text-white">
                   招募人数
                 </Label>
-                <Input
+                <select
                   id="headcount"
                   name="headcount"
-                  type="number"
-                  min="1"
-                  placeholder="输入招募人数"
-                  className="border-white/10 bg-black/20 text-white placeholder:text-white/35"
+                  value={headcount}
+                  onChange={(event) => setHeadcount(event.target.value)}
+                  className="h-10 w-full rounded-lg border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
                   required
-                />
+                >
+                  {Array.from({ length: 20 }, (_, index) => String(index + 1)).map(
+                    (value) => (
+                      <option key={value} value={value} className="bg-[#11111D]">
+                        {value} 人
+                      </option>
+                    ),
+                  )}
+                </select>
               </div>
 
               <div className="space-y-3">
@@ -317,16 +483,24 @@ export default function PublishProjectPage() {
                       key={row.id}
                       className="grid gap-3 rounded-xl border border-white/10 bg-black/20 p-4 md:grid-cols-[1fr_1fr_160px]"
                     >
-                      <Input
+                      <select
                         value={row.role}
                         onChange={(event) =>
                           updateRevenueRow(row.id, "role", event.target.value)
                         }
-                        name={`role-${row.id}`}
-                        placeholder="角色名称"
-                        className="border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
-                      />
-                      <Input
+                        className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
+                      >
+                        {roleOptions.map((role) => (
+                          <option
+                            key={role}
+                            value={role}
+                            className="bg-[#11111D]"
+                          >
+                            {role}
+                          </option>
+                        ))}
+                      </select>
+                      <select
                         value={row.contribution}
                         onChange={(event) =>
                           updateRevenueRow(
@@ -335,10 +509,18 @@ export default function PublishProjectPage() {
                             event.target.value,
                           )
                         }
-                        name={`contribution-${row.id}`}
-                        placeholder="贡献类型"
-                        className="border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
-                      />
+                        className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
+                      >
+                        {contributionOptions.map((contribution) => (
+                          <option
+                            key={contribution}
+                            value={contribution}
+                            className="bg-[#11111D]"
+                          >
+                            {contribution}
+                          </option>
+                        ))}
+                      </select>
                       <Input
                         value={row.percentage}
                         onChange={(event) =>
@@ -348,7 +530,6 @@ export default function PublishProjectPage() {
                             event.target.value,
                           )
                         }
-                        name={`percentage-${row.id}`}
                         type="number"
                         min="0"
                         max="100"
