@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 
+import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -32,7 +33,8 @@ export default function InvitePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#05050B] px-6 py-10 text-white">
+    <>
+      <main className="min-h-screen bg-[#05050B] px-6 py-10 text-white">
       <section className="mx-auto w-full max-w-5xl">
         <div className="mb-8">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6C63FF]">
@@ -131,6 +133,8 @@ export default function InvitePage() {
           </CardContent>
         </Card>
       </section>
-    </main>
+      </main>
+      <Footer />
+    </>
   )
 }

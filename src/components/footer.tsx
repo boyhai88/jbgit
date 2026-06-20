@@ -42,12 +42,12 @@ export function Footer() {
             </span>
             <span className="text-lg text-white">JBGIT</span>
           </Link>
-          <p className="mt-4 max-w-[320px] text-sm leading-6 text-white/48">
+          <p className="mt-4 max-w-[320px] text-sm leading-6 text-gray-300">
             全球开发者协作与技能变现平台。连接talent，创造价值。
           </p>
-          <p className="mt-4 font-mono text-sm text-white/62">
+          <p className="mt-4 font-mono text-sm text-gray-300">
             <span className="text-[#8D87FF]">128K+</span> 开发者
-            <span className="mx-2 text-white/22">|</span>
+            <span className="mx-2 text-gray-300">|</span>
             <span className="text-[#8D87FF]">18.9K</span> 项目
           </p>
         </div>
@@ -58,13 +58,13 @@ export function Footer() {
               <h3 className="text-sm font-semibold text-white">
                 {column.title}
               </h3>
-              <div className="mt-3 grid gap-2 text-sm text-white/42">
+              <div className="mt-3 grid gap-2 text-sm text-white">
                 {column.links.map((item) =>
                   isExternalLink(item.href) ? (
                     <a
                       key={item.label}
                       href={item.href}
-                      className="transition-colors hover:text-white hover:underline"
+                      className="text-white transition-colors hover:text-[#6C63FF] hover:underline"
                       rel={
                         item.href.startsWith("http")
                           ? "noreferrer"
@@ -78,7 +78,7 @@ export function Footer() {
                     <Link
                       key={item.label}
                       href={item.href}
-                      className="transition-colors hover:text-white hover:underline"
+                      className="text-white transition-colors hover:text-[#6C63FF] hover:underline"
                     >
                       {item.label}
                     </Link>
