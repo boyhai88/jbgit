@@ -52,6 +52,7 @@ type Review = {
   rating: number | null
   category: string | null
   comment: string | null
+  status: string | null
   created_at: string | null
 }
 
@@ -185,7 +186,18 @@ export default function ProjectDetailPage() {
       setProject(loadedProject)
       setEarningRules((earningsData ?? []) as EarningRule[])
       setMilestones((milestonesData ?? []) as Milestone[])
-      setReviews((reviewsData ?? []) as Review[])
+      const visibleReviews = ((reviewsData ?? []) as Review[]).filter((review) => {
+        if (review.status === "已通过") {
+          return true
+        }
+
+        return (
+          Boolean(user && review.reviewer_id === user.id) &&
+          (review.status === "待审核" || review.status === "已拒绝")
+        )
+      })
+
+      setReviews(visibleReviews)
       setCanReview(Boolean(user && (loadedProject?.user_id === user.id || applicationData)))
       setLoadingProject(false)
     }
@@ -296,6 +308,7 @@ export default function ProjectDetailPage() {
       rating: Number(reviewRating),
       category: reviewCategory,
       comment,
+      status: "待审核",
     }
 
     const { data, error } = await supabase
@@ -315,7 +328,12 @@ export default function ProjectDetailPage() {
       return
     }
 
-    setReviews((current) => [data as Review, ...current])
+    const savedReview = {
+      ...(data as Review),
+      status: (data as Review).status ?? "待审核",
+    }
+
+    setReviews((current) => [savedReview, ...current])
     setReviewComment("")
     setNotice({
       type: "success",
@@ -644,11 +662,16 @@ export default function ProjectDetailPage() {
                 </div>
               ) : (
                 <div className="mt-6 space-y-4">
-                  {reviews.map((review) => (
-                    <div
-                      key={review.id}
-                      className="rounded-xl border border-gray-800 bg-white/[0.03] p-5 shadow-md"
-                    >
+                  {reviews.map((review) => {
+                    const isOwnReview = user?.id === review.reviewer_id
+                    const isPending = isOwnReview && review.status === "待审核"
+                    const isRejected = isOwnReview && review.status === "已拒绝"
+
+                    return (
+                      <div
+                        key={review.id}
+                        className="rounded-xl border border-gray-800 bg-white/[0.03] p-5 shadow-md"
+                      >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <div className="flex flex-wrap items-center gap-3">
@@ -667,17 +690,35 @@ export default function ProjectDetailPage() {
                             <span className="rounded-full border border-[#6C63FF]/30 bg-[#6C63FF]/15 px-3 py-1 text-xs text-[#8D87FF]">
                               {review.category || "未分类"}
                             </span>
+                            {isPending ? (
+                              <span className="rounded-full border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-xs text-amber-300">
+                                审核中
+                              </span>
+                            ) : null}
+                            {isRejected ? (
+                              <span className="rounded-full border border-red-500/40 bg-red-500/15 px-3 py-1 text-xs text-red-300">
+                                已拒绝
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                         <span className="text-xs text-white/35">
                           {formatDate(review.created_at)}
                         </span>
                       </div>
-                      <p className="mt-4 text-base leading-relaxed text-white/60">
-                        {review.comment || "暂无评语"}
+                      <p
+                        className={cn(
+                          "mt-4 text-base leading-relaxed text-white/60",
+                          isRejected && "text-red-200"
+                        )}
+                      >
+                        {isRejected
+                          ? "该评价已被管理员移除"
+                          : review.comment || "暂无评语"}
                       </p>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </section>
