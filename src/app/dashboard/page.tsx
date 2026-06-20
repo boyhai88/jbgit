@@ -8,11 +8,20 @@ import {
   Settings,
   UsersRound,
 } from "lucide-react"
+import { revalidatePath } from "next/cache"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
 import { SiteFooter } from "@/components/footer"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { createClient } from "@/lib/supabase/server"
 import { cn } from "@/lib/utils"
 
@@ -29,6 +38,15 @@ type PublishedProjectRow = {
   name: string | null
   status: string | null
   project_applications: { id: string | number }[] | null
+}
+
+type NotificationRow = {
+  id: string | number
+  title: string | null
+  content: string | null
+  type: string | null
+  is_read: boolean | null
+  created_at: string | null
 }
 
 const sidebarItems = [
@@ -99,6 +117,62 @@ const projectStatusStyles: Record<string, string> = {
   已结束: "border-white/10 bg-white/5 text-white/55",
 }
 
+const notificationTypeStyles: Record<string, string> = {
+  申请加入: "border-blue-500/30 bg-blue-500/12 text-blue-300",
+  申请通过: "border-emerald-500/30 bg-emerald-500/12 text-emerald-300",
+  申请拒绝: "border-red-500/30 bg-red-500/12 text-red-300",
+  里程碑更新: "border-[#6C63FF]/35 bg-[#6C63FF]/16 text-[#8D87FF]",
+  新评价: "border-orange-500/30 bg-orange-500/12 text-orange-300",
+}
+
+async function markNotificationRead(formData: FormData) {
+  "use server"
+
+  const notificationId = String(formData.get("notificationId") ?? "")
+
+  if (!notificationId) {
+    return
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return
+  }
+
+  await supabase
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("id", notificationId)
+    .eq("user_id", user.id)
+
+  revalidatePath("/dashboard")
+}
+
+async function markAllNotificationsRead() {
+  "use server"
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return
+  }
+
+  await supabase
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("user_id", user.id)
+    .eq("is_read", false)
+
+  revalidatePath("/dashboard")
+}
+
 function formatDate(date: string | null) {
   if (!date) {
     return "刚刚"
@@ -119,6 +193,110 @@ function getProjectName(projects: ApplicationRow["projects"]) {
   }
 
   return projects?.name || "未命名项目"
+}
+
+function NotificationCenter({
+  notifications,
+}: {
+  notifications: NotificationRow[]
+}) {
+  const unreadCount = notifications.filter((item) => !item.is_read).length
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="relative inline-flex size-11 items-center justify-center rounded-xl border border-white/10 bg-[#10101A] text-[#8D87FF] transition-colors hover:border-[#6C63FF]/50 hover:bg-[#6C63FF]/10"
+          aria-label="通知中心"
+        >
+          <Bell className="size-5" aria-hidden="true" />
+          {unreadCount > 0 ? (
+            <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+              {unreadCount}
+            </span>
+          ) : null}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="w-80 border-white/10 bg-[#10101A] p-0 text-white shadow-2xl shadow-black/30"
+      >
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+          <DropdownMenuLabel className="p-0 text-base font-bold text-white">
+            通知中心
+          </DropdownMenuLabel>
+          <form action={markAllNotificationsRead}>
+            <button
+              type="submit"
+              className="text-xs font-medium text-[#8D87FF] transition-colors hover:text-white hover:underline"
+            >
+              全部已读
+            </button>
+          </form>
+        </div>
+        <DropdownMenuSeparator className="bg-white/10" />
+        <div className="max-h-96 overflow-y-auto p-2">
+          {notifications.length === 0 ? (
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-5 text-center text-sm text-white/45">
+              暂无通知
+            </div>
+          ) : (
+            notifications.map((notification) => {
+              const type = notification.type || "申请加入"
+
+              return (
+                <DropdownMenuItem
+                  key={notification.id}
+                  asChild
+                  className="cursor-pointer rounded-lg p-0 focus:bg-white/[0.06]"
+                >
+                  <form action={markNotificationRead} className="w-full">
+                    <input
+                      type="hidden"
+                      name="notificationId"
+                      value={notification.id}
+                    />
+                    <button
+                      type="submit"
+                      className="flex w-full flex-col gap-2 rounded-lg px-3 py-3 text-left transition-colors hover:bg-white/[0.06]"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="font-semibold text-white">
+                          {notification.title || "系统通知"}
+                        </span>
+                        {!notification.is_read ? (
+                          <span className="mt-1 size-2 rounded-full bg-red-500" />
+                        ) : null}
+                      </div>
+                      <p className="line-clamp-2 text-sm leading-5 text-white/55">
+                        {notification.content || "暂无通知内容"}
+                      </p>
+                      <div className="flex items-center justify-between gap-3">
+                        <span
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                            notificationTypeStyles[type] ??
+                              "border-white/10 bg-white/5 text-white/55",
+                          )}
+                        >
+                          {type}
+                        </span>
+                        <span className="text-[11px] text-white/35">
+                          {formatDate(notification.created_at)}
+                          {notification.is_read ? " · 已读" : " · 未读"}
+                        </span>
+                      </div>
+                    </button>
+                  </form>
+                </DropdownMenuItem>
+              )
+            })
+          )}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
 export default async function DashboardPage() {
@@ -143,9 +321,17 @@ export default async function DashboardPage() {
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
 
+  const { data: notificationsData } = await supabase
+    .from("notifications")
+    .select("id, title, content, type, is_read, created_at")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(10)
+
   const applications = (applicationsData ?? []) as ApplicationRow[]
   const publishedProjects =
     (publishedProjectsData ?? []) as PublishedProjectRow[]
+  const notifications = (notificationsData ?? []) as NotificationRow[]
   const userEmail = user.email ?? "user@jbgit.dev"
   const displayName =
     typeof user.user_metadata?.name === "string"
@@ -202,9 +388,12 @@ export default async function DashboardPage() {
                 查看你的项目协作、团队动态和收益进展。
               </p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-[#10101A] px-4 py-3 text-sm text-white/58">
-              当前用户：
-              <span className="ml-2 font-medium text-white">{displayName}</span>
+            <div className="flex items-center gap-3">
+              <NotificationCenter notifications={notifications} />
+              <div className="rounded-xl border border-white/10 bg-[#10101A] px-4 py-3 text-sm text-white/58">
+                当前用户：
+                <span className="ml-2 font-medium text-white">{displayName}</span>
+              </div>
             </div>
           </div>
 
