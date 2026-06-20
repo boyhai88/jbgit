@@ -56,9 +56,9 @@ const statusStyles: Record<string, string> = {
 }
 
 const milestoneStatusStyles: Record<string, string> = {
-  待开始: "border-white/10 bg-white/5 text-white/55",
-  进行中: "border-blue-500/30 bg-blue-500/12 text-blue-300",
-  已完成: "border-emerald-500/30 bg-emerald-500/12 text-emerald-300",
+  待开始: "border-gray-600 bg-gray-800 text-gray-300",
+  进行中: "border-blue-500/40 bg-blue-500/15 text-blue-300",
+  已完成: "border-emerald-500/40 bg-emerald-500/15 text-emerald-300",
 }
 
 function formatBudget(budget: Project["budget"]) {
@@ -133,12 +133,7 @@ export default function ProjectDetailPage() {
         return
       }
 
-      if (error || !projectData) {
-        setProject(null)
-      } else {
-        setProject(projectData as Project)
-      }
-
+      setProject(error || !projectData ? null : (projectData as Project))
       setEarningRules((earningsData ?? []) as EarningRule[])
       setMilestones((milestonesData ?? []) as Milestone[])
       setLoadingProject(false)
@@ -221,25 +216,25 @@ export default function ProjectDetailPage() {
   if (loadingProject) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#05050B] px-6 text-white">
-        <p className="text-sm text-white/55">正在加载项目...</p>
+        <p className="text-base text-white/55">正在加载项目...</p>
       </main>
     )
   }
 
   if (!project) {
     return (
-      <main className="min-h-screen bg-[#05050B] px-6 py-10 text-white">
-        <section className="mx-auto w-full max-w-[980px]">
+      <main className="min-h-screen bg-[#05050B] px-6 py-12 text-white">
+        <section className="mx-auto w-full max-w-4xl">
           <Link
             href="/projects"
             className={cn(
               buttonVariants({ variant: "outline" }),
-              "mb-6 border-white/10 bg-[#10101A] text-white/70 hover:border-[#6C63FF]/50 hover:text-white",
+              "mb-8 border-gray-800 bg-[#10101A] text-white/70 hover:border-[#6C63FF]/50 hover:text-white",
             )}
           >
             返回项目市场
           </Link>
-          <div className="rounded-xl border border-white/10 bg-[#10101A] p-10 text-center text-white/55">
+          <div className="rounded-2xl border border-gray-800 bg-[#10101A] p-10 text-center text-white/55 shadow-lg">
             项目不存在
           </div>
         </section>
@@ -252,29 +247,29 @@ export default function ProjectDetailPage() {
   const isProjectOwner = Boolean(user && project.user_id === user.id)
 
   return (
-    <main className="min-h-screen bg-[#05050B] px-6 py-10 text-white">
-      <section className="mx-auto w-full max-w-[980px]">
+    <main className="min-h-screen bg-[#05050B] px-6 py-12 text-white">
+      <section className="mx-auto w-full max-w-5xl">
         <Link
           href="/projects"
           className={cn(
             buttonVariants({ variant: "outline" }),
-            "mb-6 border-white/10 bg-[#10101A] text-white/70 hover:border-[#6C63FF]/50 hover:text-white",
+            "mb-8 border-gray-800 bg-[#10101A] text-white/70 hover:border-[#6C63FF]/50 hover:text-white",
           )}
         >
           返回项目市场
         </Link>
 
-        <Card className="border-white/10 bg-[#10101A] text-white shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
-          <CardHeader className="border-b border-white/10">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <Card className="rounded-2xl border-gray-800 bg-[#10101A] text-white shadow-lg shadow-black/30">
+          <CardHeader className="border-b border-gray-800 p-8">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="font-mono text-xs text-white/35">
                   项目ID：{project.id}
                 </p>
-                <CardTitle className="mt-3 text-3xl font-black tracking-normal md:text-4xl">
+                <CardTitle className="mt-4 text-4xl font-black tracking-normal text-white md:text-5xl">
                   {project.name || "未命名项目"}
                 </CardTitle>
-                <CardDescription className="mt-3 text-base leading-7 text-white/55">
+                <CardDescription className="mt-5 max-w-3xl text-lg leading-relaxed text-white/60">
                   {project.description || "暂无项目描述"}
                 </CardDescription>
               </div>
@@ -283,7 +278,7 @@ export default function ProjectDetailPage() {
                 className={cn(
                   "w-fit shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium",
                   statusStyles[status] ??
-                    "border-white/10 bg-white/5 text-white/55",
+                    "border-gray-700 bg-white/5 text-white/55",
                 )}
               >
                 {status}
@@ -291,7 +286,7 @@ export default function ProjectDetailPage() {
             </div>
           </CardHeader>
 
-          <CardContent className="space-y-8 p-6">
+          <CardContent className="space-y-8 p-8">
             {notice ? (
               <Alert
                 className={
@@ -305,51 +300,51 @@ export default function ProjectDetailPage() {
               </Alert>
             ) : null}
 
-            <div>
-              <h2 className="text-sm font-semibold text-white/80">项目描述</h2>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-white/60">
+            <section className="rounded-2xl border border-gray-800 bg-black/20 p-6 shadow-md">
+              <h2 className="text-xl font-bold text-white">项目描述</h2>
+              <p className="mt-4 whitespace-pre-wrap text-base leading-relaxed text-white/65">
                 {project.description || "暂无项目描述"}
               </p>
-            </div>
+            </section>
 
-            <div>
-              <h2 className="text-sm font-semibold text-white/80">技能标签</h2>
-              <div className="mt-3 flex flex-wrap gap-2">
+            <section className="rounded-2xl border border-gray-800 bg-black/20 p-6 shadow-md">
+              <h2 className="text-xl font-bold text-white">技能标签</h2>
+              <div className="mt-4 flex flex-wrap gap-3">
                 {skills.length > 0 ? (
                   skills.map((skill) => (
                     <span
                       key={skill}
-                      className="rounded-full border border-[#6C63FF]/30 bg-[#6C63FF]/16 px-3 py-1 font-mono text-xs text-[#8D87FF]"
+                      className="rounded-full border border-[#6C63FF]/30 bg-[#6C63FF]/16 px-4 py-1.5 font-mono text-sm text-[#8D87FF]"
                     >
                       {skill}
                     </span>
                   ))
                 ) : (
-                  <span className="text-sm text-white/45">暂无技能标签</span>
+                  <span className="text-base text-white/45">暂无技能标签</span>
                 )}
               </div>
-            </div>
+            </section>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-xl border border-white/10 bg-black/20 p-5">
-                <p className="text-sm text-white/45">招募人数</p>
-                <p className="mt-2 text-2xl font-bold text-white">
+            <div className="grid gap-6 sm:grid-cols-2">
+              <div className="rounded-2xl border border-gray-800 bg-black/20 p-6 shadow-md">
+                <p className="text-base text-white/45">招募人数</p>
+                <p className="mt-3 text-3xl font-bold text-white">
                   {project.headcount ?? 0} 人
                 </p>
               </div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-5">
-                <p className="text-sm text-white/45">项目预算</p>
-                <p className="mt-2 text-2xl font-bold text-[#6C63FF]">
+              <div className="rounded-2xl border border-gray-800 bg-black/20 p-6 shadow-md">
+                <p className="text-base text-white/45">项目预算</p>
+                <p className="mt-3 text-3xl font-bold text-[#6C63FF]">
                   {formatBudget(project.budget)}
                 </p>
               </div>
             </div>
 
-            <div className="rounded-xl border border-white/10 bg-black/20 p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <section className="rounded-2xl border border-gray-800 bg-black/20 p-6 shadow-md">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-bold text-white">项目进度</h2>
-                  <p className="mt-1 text-sm text-white/45">
+                  <h2 className="text-xl font-bold text-white">项目进度</h2>
+                  <p className="mt-2 text-base leading-relaxed text-white/45">
                     项目里程碑、状态和截止日期
                   </p>
                 </div>
@@ -364,28 +359,28 @@ export default function ProjectDetailPage() {
               </div>
 
               {milestones.length === 0 ? (
-                <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-white/45">
+                <div className="mt-6 rounded-xl border border-gray-800 bg-white/[0.03] p-5 text-base text-white/45">
                   暂无里程碑
                 </div>
               ) : (
-                <div className="mt-4 space-y-3">
+                <div className="mt-6 space-y-4">
                   {milestones.map((milestone) => {
                     const milestoneStatus = milestone.status || "待开始"
 
                     return (
                       <div
                         key={milestone.id}
-                        className="rounded-lg border border-white/10 bg-white/[0.03] p-4"
+                        className="rounded-xl border border-gray-800 bg-white/[0.03] p-5 shadow-md"
                       >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                           <div>
-                            <h3 className="font-semibold text-white">
+                            <h3 className="text-lg font-semibold text-white">
                               {milestone.title || "未命名里程碑"}
                             </h3>
-                            <p className="mt-2 text-sm leading-6 text-white/50">
+                            <p className="mt-3 text-base leading-relaxed text-white/55">
                               {milestone.description || "暂无描述"}
                             </p>
-                            <p className="mt-2 text-xs text-white/35">
+                            <p className="mt-3 text-sm text-white/35">
                               截止日期：{formatDate(milestone.due_date)}
                             </p>
                           </div>
@@ -404,13 +399,13 @@ export default function ProjectDetailPage() {
                   })}
                 </div>
               )}
-            </div>
+            </section>
 
-            <div className="rounded-xl border border-white/10 bg-black/20 p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <section className="rounded-2xl border border-gray-800 bg-black/20 p-6 shadow-md">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-bold text-white">收益分配</h2>
-                  <p className="mt-1 text-sm text-white/45">
+                  <h2 className="text-xl font-bold text-white">收益分配</h2>
+                  <p className="mt-2 text-base leading-relaxed text-white/45">
                     项目角色、贡献类型与分成比例
                   </p>
                 </div>
@@ -425,12 +420,12 @@ export default function ProjectDetailPage() {
               </div>
 
               {earningRules.length === 0 ? (
-                <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-white/45">
+                <div className="mt-6 rounded-xl border border-gray-800 bg-white/[0.03] p-5 text-base text-white/45">
                   暂无收益分配方案
                 </div>
               ) : (
-                <div className="mt-4 overflow-hidden rounded-lg border border-white/10">
-                  <div className="grid grid-cols-3 bg-white/[0.04] px-4 py-3 text-xs font-semibold text-white/45">
+                <div className="mt-6 overflow-hidden rounded-xl border border-gray-800">
+                  <div className="grid grid-cols-3 bg-white/[0.04] px-5 py-4 text-sm font-semibold text-white/45">
                     <span>角色</span>
                     <span>贡献类型</span>
                     <span className="text-right">分成比例</span>
@@ -438,7 +433,7 @@ export default function ProjectDetailPage() {
                   {earningRules.map((rule) => (
                     <div
                       key={rule.id}
-                      className="grid grid-cols-3 border-t border-white/10 px-4 py-3 text-sm text-white/70"
+                      className="grid grid-cols-3 border-t border-gray-800 px-5 py-4 text-base text-white/70"
                     >
                       <span>{rule.role || "未设置"}</span>
                       <span>{rule.contribution_type || "未设置"}</span>
@@ -449,14 +444,14 @@ export default function ProjectDetailPage() {
                   ))}
                 </div>
               )}
-            </div>
+            </section>
 
-            <div className="flex justify-end border-t border-white/10 pt-6">
+            <div className="flex justify-end border-t border-gray-800 pt-8">
               <Button
                 type="button"
                 disabled={authLoading || submitting}
                 onClick={handleApply}
-                className="h-10 bg-[#6C63FF] px-6 text-white hover:bg-[#5B54E8]"
+                className="h-11 bg-[#6C63FF] px-8 text-white hover:bg-[#5B54E8]"
               >
                 {submitting ? "提交中..." : "申请加入"}
               </Button>
