@@ -101,6 +101,21 @@ const contributionOptions = [
   "文档",
 ]
 
+const forbiddenWords = [
+  "色情",
+  "暴力",
+  "违法",
+  "赌博",
+  "诈骗",
+  "洗钱",
+  "毒品",
+  "枪支",
+  "黑产",
+  "攻击",
+  "木马",
+  "病毒",
+]
+
 type RevenueRow = {
   id: number
   role: string
@@ -114,6 +129,31 @@ type Notice = {
   message: string
 }
 
+function getContentLength(value: string) {
+  return Array.from(value.replace(/\s/g, "")).length
+}
+
+function isPureNoise(value: string) {
+  const compact = value.replace(/\s/g, "")
+
+  if (!compact) {
+    return true
+  }
+
+  const isOnlyNumbers = /^[0-9]+$/.test(compact)
+  const isOnlySpecialChars = !/[A-Za-z0-9\u4e00-\u9fa5]/.test(compact)
+  const hasRepeatedSingleChar =
+    compact.length >= 5 && compact.split("").every((char) => char === compact[0])
+
+  return isOnlyNumbers || isOnlySpecialChars || hasRepeatedSingleChar
+}
+
+function hasForbiddenContent(value: string) {
+  const normalized = value.toLowerCase()
+
+  return forbiddenWords.some((word) => normalized.includes(word.toLowerCase()))
+}
+
 export default function PublishProjectPage() {
   const router = useRouter()
   const { loading, user } = useAuth()
@@ -122,6 +162,7 @@ export default function PublishProjectPage() {
   const [budget, setBudget] = useState(budgetOptions[0])
   const [customSkill, setCustomSkill] = useState("")
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
+  const [description, setDescription] = useState("")
   const [headcount, setHeadcount] = useState("1")
   const [revenueRows, setRevenueRows] = useState<RevenueRow[]>([
     {
@@ -131,6 +172,8 @@ export default function PublishProjectPage() {
       percentage: percentageOptions[3],
     },
   ])
+
+  const descriptionLength = getContentLength(description)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -190,6 +233,44 @@ export default function PublishProjectPage() {
     )
   }
 
+  async function validatePublishRate(userId: string) {
+    const supabase = createClient()
+    const since24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const since5Minutes = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+
+    const { count, error: countError } = await supabase
+      .from("projects")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .gte("created_at", since24Hours)
+
+    if (countError) {
+      return countError.message
+    }
+
+    if ((count ?? 0) >= 5) {
+      return "同一用户24小时内最多发布5个项目"
+    }
+
+    const { data: recentProjects, error: recentError } = await supabase
+      .from("projects")
+      .select("id, created_at")
+      .eq("user_id", userId)
+      .gte("created_at", since5Minutes)
+      .order("created_at", { ascending: false })
+      .limit(1)
+
+    if (recentError) {
+      return recentError.message
+    }
+
+    if (recentProjects && recentProjects.length > 0) {
+      return "发布间隔至少5分钟，请稍后再试"
+    }
+
+    return null
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -200,7 +281,7 @@ export default function PublishProjectPage() {
 
     const formData = new FormData(event.currentTarget)
     const name = String(formData.get("projectName") ?? "").trim()
-    const description = String(formData.get("description") ?? "").trim()
+    const descriptionValue = description.trim()
     const earnings = revenueRows
       .map((row) => ({
         role: row.role.trim(),
@@ -216,7 +297,7 @@ export default function PublishProjectPage() {
 
     if (
       !name ||
-      !description ||
+      !descriptionValue ||
       !budget ||
       selectedSkills.length === 0 ||
       !headcount
@@ -229,13 +310,48 @@ export default function PublishProjectPage() {
       return
     }
 
+    if (descriptionLength < 50) {
+      setNotice({
+        type: "error",
+        title: "项目描述太短",
+        message: `项目描述至少需要50个字，当前${descriptionLength}个字`,
+      })
+      return
+    }
+
+    if (
+      isPureNoise(name) ||
+      isPureNoise(descriptionValue) ||
+      hasForbiddenContent(name) ||
+      hasForbiddenContent(descriptionValue)
+    ) {
+      setNotice({
+        type: "error",
+        title: "内容审核未通过",
+        message: "内容包含违规词汇，请修改",
+      })
+      return
+    }
+
     setSubmitting(true)
     setNotice(null)
+
+    const rateLimitError = await validatePublishRate(user.id)
+
+    if (rateLimitError) {
+      setSubmitting(false)
+      setNotice({
+        type: "error",
+        title: "发布过于频繁",
+        message: rateLimitError,
+      })
+      return
+    }
 
     const supabase = createClient()
     const payload = {
       name,
-      description,
+      description: descriptionValue,
       budget: Number(budget),
       skills: selectedSkills,
       headcount: Number(headcount),
@@ -383,13 +499,26 @@ export default function PublishProjectPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description" className="text-white">
-                  项目描述
-                </Label>
+                <div className="flex items-center justify-between gap-4">
+                  <Label htmlFor="description" className="text-white">
+                    项目描述
+                  </Label>
+                  <span
+                    className={
+                      descriptionLength < 50
+                        ? "text-xs text-amber-300"
+                        : "text-xs text-emerald-300"
+                    }
+                  >
+                    {descriptionLength}/50 字
+                  </span>
+                </div>
                 <Textarea
                   id="description"
                   name="description"
-                  placeholder="描述项目目标、协作方式和交付要求"
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="描述项目目标、协作方式和交付要求，至少50个字"
                   className="min-h-32 border-white/10 bg-black/20 text-white placeholder:text-white/35"
                   required
                 />
