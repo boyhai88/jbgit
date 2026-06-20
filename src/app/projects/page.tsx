@@ -77,7 +77,7 @@ export default async function ProjectsPage() {
 
   return (
     <main className="min-h-screen bg-black text-white">
-      <section className="p-6">
+      <section className="p-6 pb-12">
         <div className="mx-auto max-w-6xl">
           <div className="mb-6 flex items-center justify-between">
             <div>
@@ -153,7 +153,9 @@ export default async function ProjectsPage() {
           </div>
         </div>
       </section>
-      <SiteFooter />
+      <div className="mt-12">
+        <SiteFooter />
+      </div>
     </main>
   )
 }

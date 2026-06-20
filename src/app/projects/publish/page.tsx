@@ -58,6 +58,29 @@ const budgetOptions = [
   "100000",
 ]
 
+const percentageOptions = [
+  "5",
+  "10",
+  "15",
+  "20",
+  "25",
+  "30",
+  "35",
+  "40",
+  "45",
+  "50",
+  "55",
+  "60",
+  "65",
+  "70",
+  "75",
+  "80",
+  "85",
+  "90",
+  "95",
+  "100",
+]
+
 const roleOptions = [
   "前端开发",
   "后端开发",
@@ -105,7 +128,7 @@ export default function PublishProjectPage() {
       id: 1,
       role: roleOptions[0],
       contribution: contributionOptions[0],
-      percentage: "",
+      percentage: percentageOptions[3],
     },
   ])
 
@@ -115,12 +138,12 @@ export default function PublishProjectPage() {
     }
   }, [loading, router, user])
 
-  function setPresetSkills(values: string[]) {
-    const customSkills = selectedSkills.filter(
-      (skill) => !presetSkills.includes(skill),
+  function toggleSkill(skill: string) {
+    setSelectedSkills((current) =>
+      current.includes(skill)
+        ? current.filter((item) => item !== skill)
+        : [...current, skill],
     )
-
-    setSelectedSkills([...values, ...customSkills])
   }
 
   function addCustomSkill() {
@@ -134,7 +157,7 @@ export default function PublishProjectPage() {
       setNotice({
         type: "error",
         title: "请从预设标签中选择",
-        message: "该技能已在预设列表中，请直接从下拉列表选择。",
+        message: "该技能已在预设列表中，请直接点击标签选择。",
       })
       return
     }
@@ -145,14 +168,6 @@ export default function PublishProjectPage() {
     setCustomSkill("")
   }
 
-  function toggleSkill(skill: string) {
-    setSelectedSkills((current) =>
-      current.includes(skill)
-        ? current.filter((item) => item !== skill)
-        : [...current, skill],
-    )
-  }
-
   function addRevenueRow() {
     setRevenueRows((rows) => [
       ...rows,
@@ -160,7 +175,7 @@ export default function PublishProjectPage() {
         id: Date.now(),
         role: roleOptions[0],
         contribution: contributionOptions[0],
-        percentage: "",
+        percentage: percentageOptions[3],
       },
     ])
   }
@@ -381,30 +396,27 @@ export default function PublishProjectPage() {
               </div>
 
               <div className="space-y-3">
-                <Label htmlFor="preset-skills" className="text-white">
-                  技能标签
-                </Label>
-                <select
-                  id="preset-skills"
-                  multiple
-                  value={selectedSkills.filter((skill) =>
-                    presetSkills.includes(skill),
-                  )}
-                  onChange={(event) =>
-                    setPresetSkills(
-                      Array.from(event.target.selectedOptions, (option) =>
-                        option.value,
-                      ),
+                <Label className="text-white">技能标签</Label>
+                <div className="flex flex-wrap gap-2">
+                  {presetSkills.map((skill) => {
+                    const selected = selectedSkills.includes(skill)
+
+                    return (
+                      <button
+                        key={skill}
+                        type="button"
+                        onClick={() => toggleSkill(skill)}
+                        className={
+                          selected
+                            ? "rounded-full border border-[#6C63FF] bg-[#6C63FF] px-3 py-1.5 text-xs text-white transition"
+                            : "rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/65 transition hover:border-[#6C63FF]/60 hover:text-white"
+                        }
+                      >
+                        {skill}
+                      </button>
                     )
-                  }
-                  className="min-h-40 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
-                >
-                  {presetSkills.map((skill) => (
-                    <option key={skill} value={skill} className="bg-[#11111D]">
-                      {skill}
-                    </option>
-                  ))}
-                </select>
+                  })}
+                </div>
 
                 <div className="grid gap-3 md:grid-cols-[1fr_auto]">
                   <Input
@@ -521,7 +533,7 @@ export default function PublishProjectPage() {
                           </option>
                         ))}
                       </select>
-                      <Input
+                      <select
                         value={row.percentage}
                         onChange={(event) =>
                           updateRevenueRow(
@@ -530,12 +542,18 @@ export default function PublishProjectPage() {
                             event.target.value,
                           )
                         }
-                        type="number"
-                        min="0"
-                        max="100"
-                        placeholder="分成比例"
-                        className="border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
-                      />
+                        className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
+                      >
+                        {percentageOptions.map((percentage) => (
+                          <option
+                            key={percentage}
+                            value={percentage}
+                            className="bg-[#11111D]"
+                          >
+                            {percentage}%
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   ))}
                 </div>
