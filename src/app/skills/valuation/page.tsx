@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 
+import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -25,15 +26,81 @@ const stacks = [
   "C++",
 ]
 
-const trend = [68, 72, 75, 79, 83, 87]
+const skillHeat: Record<string, number> = {
+  React: 88,
+  TypeScript: 90,
+  Python: 86,
+  Rust: 84,
+  Go: 80,
+  "Node.js": 82,
+  Vue: 76,
+  Java: 78,
+  "C++": 74,
+}
+
+const skillTrends: Record<string, string[]> = {
+  React: ["前端高需求", "远程岗位多", "组件工程化", "AI 应用界面"],
+  TypeScript: ["全栈增长", "大型项目偏好", "类型安全", "团队协作强"],
+  Python: ["AI/ML 热门", "数据工程", "自动化", "后端稳定"],
+  Rust: ["系统开发增长", "Web3", "高性能", "安全内存模型"],
+  Go: ["云原生", "后端服务", "DevOps", "高并发"],
+  "Node.js": ["全栈岗位", "API 服务", "实时应用", "生态成熟"],
+  Vue: ["中后台需求", "上手快", "国内岗位稳定", "组件化"],
+  Java: ["企业级稳定", "金融系统", "后端岗位多", "微服务"],
+  "C++": ["高性能计算", "游戏引擎", "嵌入式", "底层系统"],
+}
+
+type ValuationResult = {
+  score: number
+  rank: number
+  salaryMin: number
+  salaryMax: number
+  trendTags: string[]
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function calculateValuation(stack: string, yearsValue: string): ValuationResult {
+  const years = clamp(Number(yearsValue) || 1, 1, 20)
+  const heat = skillHeat[stack] ?? 75
+  const experienceScore = Math.min(years * 2.2, 18)
+  const score = Math.round(clamp(heat * 0.82 + experienceScore, 50, 98))
+  const rank = Math.round(clamp(score - 15 + years * 0.8, 45, 96))
+  const baseSalary = 9000 + heat * 150 + years * 1800
+  const salaryMin = Math.round(baseSalary / 1000) * 1000
+  const salaryMax = salaryMin + 9000 + Math.round(years / 2) * 1000
+
+  return {
+    score,
+    rank,
+    salaryMin,
+    salaryMax,
+    trendTags: skillTrends[stack] ?? ["市场稳定", "岗位活跃", "技能可迁移"],
+  }
+}
+
+function formatCurrency(value: number) {
+  return `¥${value.toLocaleString("zh-CN")}`
+}
 
 export default function SkillValuationPage() {
+  const { loading, user } = useAuth()
   const [stack, setStack] = useState("React")
   const [years, setYears] = useState("3")
-  const [showResult, setShowResult] = useState(false)
+  const [result, setResult] = useState<ValuationResult | null>(null)
+  const [loginMessage, setLoginMessage] = useState(false)
 
   function handleValuation() {
-    setShowResult(true)
+    if (!loading && !user) {
+      setResult(null)
+      setLoginMessage(true)
+      return
+    }
+
+    setLoginMessage(false)
+    setResult(calculateValuation(stack, years))
   }
 
   return (
@@ -115,25 +182,30 @@ export default function SkillValuationPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-6 pt-4">
-              {showResult ? (
+              {loginMessage ? (
+                <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-[#6C63FF]/35 bg-[#6C63FF]/10 text-sm font-medium text-white">
+                  请登录查看完整估值
+                </div>
+              ) : result ? (
                 <div className="space-y-6">
                   <div className="grid gap-4 md:grid-cols-3">
                     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
                       <p className="text-sm text-white/45">估值分数</p>
                       <p className="mt-3 font-mono text-4xl font-bold text-white">
-                        87/100
+                        {result.score}/100
                       </p>
                     </div>
                     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
                       <p className="text-sm text-white/45">市场排名</p>
                       <p className="mt-3 text-xl font-bold text-[#8D87FF]">
-                        超过72%的开发者
+                        超过{result.rank}%的开发者
                       </p>
                     </div>
                     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
                       <p className="text-sm text-white/45">建议薪资范围</p>
                       <p className="mt-3 text-xl font-bold text-emerald-300">
-                        ¥25,000 - ¥35,000/月
+                        {formatCurrency(result.salaryMin)} -{" "}
+                        {formatCurrency(result.salaryMax)}/月
                       </p>
                     </div>
                   </div>
@@ -142,31 +214,25 @@ export default function SkillValuationPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-semibold text-white">
-                          {stack} 技能趋势
+                          {stack} 技能热度趋势
                         </p>
                         <p className="mt-1 text-sm text-white/40">
-                          基于 {years || 1} 年经验的近6个月估值变化
+                          基于 {clamp(Number(years) || 1, 1, 20)} 年经验的市场信号
                         </p>
                       </div>
                       <span className="rounded-full border border-[#6C63FF]/30 bg-[#6C63FF]/15 px-3 py-1 text-xs text-[#8D87FF]">
-                        +19%
+                        热度 {skillHeat[stack] ?? 75}
                       </span>
                     </div>
 
-                    <div className="mt-6 flex h-40 items-end gap-3">
-                      {trend.map((value, index) => (
-                        <div
-                          key={value}
-                          className="flex flex-1 flex-col items-center gap-2"
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      {result.trendTags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full border border-[#6C63FF]/30 bg-[#6C63FF]/16 px-3 py-1 text-xs text-[#8D87FF]"
                         >
-                          <div
-                            className="w-full rounded-t-lg bg-[#6C63FF] shadow-[0_0_24px_rgba(108,99,255,0.28)]"
-                            style={{ height: `${value}%` }}
-                          />
-                          <span className="text-xs text-white/35">
-                            {index + 1}月
-                          </span>
-                        </div>
+                          {tag}
+                        </span>
                       ))}
                     </div>
                   </div>
