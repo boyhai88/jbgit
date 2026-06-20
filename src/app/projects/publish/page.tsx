@@ -76,12 +76,29 @@ export default function PublishProjectPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
+    if (!user) {
+      router.replace("/auth/login")
+      return
+    }
+
     const formData = new FormData(event.currentTarget)
     const name = String(formData.get("projectName") ?? "").trim()
     const description = String(formData.get("description") ?? "").trim()
     const budget = String(formData.get("budget") ?? "").trim()
     const selectedSkills = formData.getAll("skills").map(String)
     const headcount = String(formData.get("headcount") ?? "").trim()
+    const earnings = revenueRows
+      .map((row) => ({
+        role: row.role.trim(),
+        contribution_type: row.contribution.trim(),
+        share_percent: row.percentage.trim(),
+      }))
+      .filter(
+        (row) =>
+          row.role.length > 0 ||
+          row.contribution_type.length > 0 ||
+          row.share_percent.length > 0,
+      )
 
     if (
       !name ||
@@ -102,23 +119,52 @@ export default function PublishProjectPage() {
     setNotice(null)
 
     const supabase = createClient()
-    const { error } = await supabase.from("projects").insert({
-      name,
-      description,
-      budget: Number(budget),
-      skills: selectedSkills,
-      headcount: Number(headcount),
-      status: "招募中",
-    })
+    const { data: project, error: projectError } = await supabase
+      .from("projects")
+      .insert({
+        name,
+        description,
+        budget: Number(budget),
+        skills: selectedSkills,
+        headcount: Number(headcount),
+        status: "招募中",
+        user_id: user.id,
+      })
+      .select("id")
+      .single()
 
-    if (error) {
+    if (projectError || !project) {
       setSubmitting(false)
       setNotice({
         type: "error",
         title: "项目发布失败",
-        message: error.message,
+        message: projectError?.message ?? "未能创建项目，请稍后重试。",
       })
       return
+    }
+
+    if (earnings.length > 0) {
+      const { error: earningsError } = await supabase
+        .from("project_earnings")
+        .insert(
+          earnings.map((earning) => ({
+            project_id: project.id,
+            user_id: user.id,
+            role: earning.role,
+            contribution_type: earning.contribution_type,
+            share_percent: Number(earning.share_percent),
+          })),
+        )
+
+      if (earningsError) {
+        setSubmitting(false)
+        setNotice({
+          type: "error",
+          title: "收益分配保存失败",
+          message: earningsError.message,
+        })
+        return
+      }
     }
 
     setNotice({
