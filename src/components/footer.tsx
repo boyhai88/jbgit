@@ -3,17 +3,33 @@ import Link from "next/link"
 const footerColumns = [
   {
     title: "产品",
-    links: ["项目市场", "发布项目", "仪表盘"],
+    links: [
+      { label: "项目市场", href: "/projects" },
+      { label: "发布项目", href: "/projects/publish" },
+      { label: "仪表盘", href: "/dashboard" },
+    ],
   },
   {
     title: "公司",
-    links: ["关于我们", "帮助中心", "隐私政策"],
+    links: [
+      { label: "关于我们", href: "/about" },
+      { label: "帮助中心", href: "/help" },
+      { label: "隐私政策", href: "/privacy" },
+    ],
   },
   {
     title: "联系",
-    links: ["hello@jbgit.dev", "Twitter/X", "GitHub"],
+    links: [
+      { label: "hello@jbgit.dev", href: "mailto:hello@jbgit.dev" },
+      { label: "Twitter/X", href: "https://x.com" },
+      { label: "GitHub", href: "https://github.com/boyhai88/jbgit" },
+    ],
   },
 ]
+
+function isExternalLink(href: string) {
+  return href.startsWith("http") || href.startsWith("mailto:")
+}
 
 export function Footer() {
   return (
@@ -43,14 +59,31 @@ export function Footer() {
                 {column.title}
               </h3>
               <div className="mt-3 grid gap-2 text-sm text-white/42">
-                {column.links.map((item) => (
-                  <span
-                    key={item}
-                    className="transition-colors hover:text-white"
-                  >
-                    {item}
-                  </span>
-                ))}
+                {column.links.map((item) =>
+                  isExternalLink(item.href) ? (
+                    <a
+                      key={item.label}
+                      href={item.href}
+                      className="transition-colors hover:text-white hover:underline"
+                      rel={
+                        item.href.startsWith("http")
+                          ? "noreferrer"
+                          : undefined
+                      }
+                      target={item.href.startsWith("http") ? "_blank" : undefined}
+                    >
+                      {item.label}
+                    </a>
+                  ) : (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      className="transition-colors hover:text-white hover:underline"
+                    >
+                      {item.label}
+                    </Link>
+                  ),
+                )}
               </div>
             </div>
           ))}
