@@ -1,12 +1,23 @@
 import { SiteFooter } from "@/components/footer"
-import { createClient } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
+
+type Project = {
+  id: string | number
+  name: string | null
+  description: string | null
+  skills: string[] | string | null
+  headcount: number | null
+  budget: string | number | null
+  status: string | null
+  created_at?: string | null
+}
 
 const filterTags = ["全部", "React", "Rust", "Python", "AI/ML", "区块链", "最新发布"]
 
-const fallbackProjects = [
+const fallbackProjects: Project[] = [
   {
-    id: "1",
+    id: "demo-1",
     name: "开源 AI 代码审查助手",
     description:
       "构建基于 LLM 的 PR 审查工具，集成 GitHub Actions，支持多语言代码审查。",
@@ -16,7 +27,7 @@ const fallbackProjects = [
     status: "招募中",
   },
   {
-    id: "2",
+    id: "demo-2",
     name: "跨链 DeFi 聚合协议",
     description:
       "开发多链资产路由引擎，优化 gas 费用与成本，需要 Rust 与智能合约经验。",
@@ -26,7 +37,7 @@ const fallbackProjects = [
     status: "招募中",
   },
   {
-    id: "3",
+    id: "demo-3",
     name: "医疗影像标注平台",
     description:
       "为放射科医生提供 DICOM 标注工具，含 AI 辅助预测标注与质量控制模块。",
@@ -36,7 +47,7 @@ const fallbackProjects = [
     status: "招募中",
   },
   {
-    id: "4",
+    id: "demo-4",
     name: "开发者文档搜索引擎",
     description:
       "语义化搜索 API 文档与 Stack Overflow，支持 VS Code 插件集成。",
@@ -46,7 +57,7 @@ const fallbackProjects = [
     status: "招募中",
   },
   {
-    id: "5",
+    id: "demo-5",
     name: "边缘计算 IoT 网关",
     description:
       "工业传感器数据采集与边缘推理，低延迟协议栈与设备管理平台。",
@@ -56,7 +67,7 @@ const fallbackProjects = [
     status: "招募中",
   },
   {
-    id: "6",
+    id: "demo-6",
     name: "NFT 创作者工具套件",
     description: "无代码 NFT 铸造与版权管理，含创作者仪表盘与链上分析。",
     skills: ["React", "Web3.js", "区块链"],
@@ -66,20 +77,41 @@ const fallbackProjects = [
   },
 ]
 
+function getSkills(skills: Project["skills"]) {
+  if (Array.isArray(skills)) {
+    return skills
+  }
+
+  if (typeof skills === "string") {
+    try {
+      const parsed = JSON.parse(skills)
+      return Array.isArray(parsed) ? parsed.map(String) : [skills]
+    } catch {
+      return skills
+        .split(",")
+        .map((skill) => skill.trim())
+        .filter(Boolean)
+    }
+  }
+
+  return []
+}
+
 export default async function ProjectsPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: projects } = await supabase
     .from("projects")
     .select("*")
     .order("created_at", { ascending: false })
 
-  const displayProjects = projects && projects.length > 0 ? projects : fallbackProjects
+  const displayProjects =
+    projects && projects.length > 0 ? (projects as Project[]) : fallbackProjects
 
   return (
     <main className="min-h-screen bg-black text-white">
       <section className="p-6 pb-12">
         <div className="mx-auto max-w-6xl">
-          <div className="mb-6 flex items-center justify-between">
+          <div className="mb-6 flex items-center justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold text-white">项目市场</h1>
               <p className="text-gray-400">
@@ -114,21 +146,21 @@ export default async function ProjectsPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {displayProjects.map((project: any) => (
+            {displayProjects.map((project) => (
               <div
                 key={project.id}
                 className="rounded-xl border border-gray-800 bg-gray-900 p-6 transition hover:border-[#6C63FF]"
               >
                 <h2 className="text-xl font-semibold text-white">
-                  {project.name}
+                  {project.name || "未命名项目"}
                 </h2>
                 <p className="mt-2 line-clamp-2 text-sm text-gray-400">
-                  {project.description}
+                  {project.description || "暂无项目描述"}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {project.skills?.map((skill: string) => (
+                  {getSkills(project.skills).map((skill) => (
                     <span
-                      key={skill}
+                      key={`${project.id}-${skill}`}
                       className="rounded-full bg-[#6C63FF]/20 px-3 py-1 text-xs text-[#6C63FF]"
                     >
                       {skill}
