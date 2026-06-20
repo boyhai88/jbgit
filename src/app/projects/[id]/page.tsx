@@ -19,12 +19,20 @@ import { cn } from "@/lib/utils"
 
 type Project = {
   id: string | number
+  user_id: string | null
   name: string | null
   description: string | null
   budget: string | number | null
   skills: string[] | null
   headcount: number | null
   status: string | null
+}
+
+type EarningRule = {
+  id: string | number
+  role: string | null
+  contribution_type: string | null
+  percentage: string | number | null
 }
 
 type Notice = {
@@ -50,11 +58,20 @@ function formatBudget(budget: Project["budget"]) {
   return budget.startsWith("$") ? budget : `$${budget}`
 }
 
+function formatPercentage(percentage: EarningRule["percentage"]) {
+  if (percentage === null || percentage === undefined || percentage === "") {
+    return "待定"
+  }
+
+  return `${percentage}%`
+}
+
 export default function ProjectDetailPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
   const { loading: authLoading, user } = useAuth()
   const [project, setProject] = useState<Project | null>(null)
+  const [earningRules, setEarningRules] = useState<EarningRule[]>([])
   const [loadingProject, setLoadingProject] = useState(true)
   const [notice, setNotice] = useState<Notice | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -65,33 +82,38 @@ export default function ProjectDetailPage() {
     const supabase = createClient()
 
     async function loadProject() {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("id", projectId)
-        .single()
+      const [{ data: projectData, error }, { data: earningsData }] =
+        await Promise.all([
+          supabase.from("projects").select("*").eq("id", projectId).single(),
+          supabase
+            .from("project_earnings")
+            .select("id, role, contribution_type, percentage")
+            .eq("project_id", projectId),
+        ])
 
       if (!mounted) {
         return
       }
 
-      if (error || !data) {
+      if (error || !projectData) {
         setProject(null)
       } else {
-        setProject(data as Project)
+        setProject(projectData as Project)
       }
 
+      setEarningRules((earningsData ?? []) as EarningRule[])
       setLoadingProject(false)
     }
 
     void loadProject().catch(() => {
-        if (!mounted) {
-          return
-        }
+      if (!mounted) {
+        return
+      }
 
-        setProject(null)
-        setLoadingProject(false)
-      })
+      setProject(null)
+      setEarningRules([])
+      setLoadingProject(false)
+    })
 
     return () => {
       mounted = false
@@ -187,6 +209,7 @@ export default function ProjectDetailPage() {
 
   const status = project.status || "招募中"
   const skills = project.skills ?? []
+  const isProjectOwner = Boolean(user && project.user_id === user.id)
 
   return (
     <main className="min-h-screen bg-[#05050B] px-6 py-10 text-white">
@@ -280,6 +303,51 @@ export default function ProjectDetailPage() {
                   {formatBudget(project.budget)}
                 </p>
               </div>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-black/20 p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-white">收益分配</h2>
+                  <p className="mt-1 text-sm text-white/45">
+                    项目角色、贡献类型与分成比例
+                  </p>
+                </div>
+                {isProjectOwner ? (
+                  <Button
+                    type="button"
+                    className="bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
+                  >
+                    管理收益分配
+                  </Button>
+                ) : null}
+              </div>
+
+              {earningRules.length === 0 ? (
+                <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-white/45">
+                  暂无收益分配方案
+                </div>
+              ) : (
+                <div className="mt-4 overflow-hidden rounded-lg border border-white/10">
+                  <div className="grid grid-cols-3 bg-white/[0.04] px-4 py-3 text-xs font-semibold text-white/45">
+                    <span>角色</span>
+                    <span>贡献类型</span>
+                    <span className="text-right">分成比例</span>
+                  </div>
+                  {earningRules.map((rule) => (
+                    <div
+                      key={rule.id}
+                      className="grid grid-cols-3 border-t border-white/10 px-4 py-3 text-sm text-white/70"
+                    >
+                      <span>{rule.role || "未设置"}</span>
+                      <span>{rule.contribution_type || "未设置"}</span>
+                      <span className="text-right font-mono text-[#8D87FF]">
+                        {formatPercentage(rule.percentage)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end border-t border-white/10 pt-6">
