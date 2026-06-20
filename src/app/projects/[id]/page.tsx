@@ -32,7 +32,16 @@ type EarningRule = {
   id: string | number
   role: string | null
   contribution_type: string | null
-  percentage: string | number | null
+  percentage?: string | number | null
+  share_percent?: string | number | null
+}
+
+type Milestone = {
+  id: string | number
+  title: string | null
+  description: string | null
+  status: string | null
+  due_date: string | null
 }
 
 type Notice = {
@@ -44,6 +53,12 @@ type Notice = {
 const statusStyles: Record<string, string> = {
   招募中: "border-amber-500/30 bg-amber-500/12 text-amber-300",
   进行中: "border-emerald-500/30 bg-emerald-500/12 text-emerald-300",
+}
+
+const milestoneStatusStyles: Record<string, string> = {
+  待开始: "border-white/10 bg-white/5 text-white/55",
+  进行中: "border-blue-500/30 bg-blue-500/12 text-blue-300",
+  已完成: "border-emerald-500/30 bg-emerald-500/12 text-emerald-300",
 }
 
 function formatBudget(budget: Project["budget"]) {
@@ -58,12 +73,26 @@ function formatBudget(budget: Project["budget"]) {
   return budget.startsWith("$") ? budget : `$${budget}`
 }
 
-function formatPercentage(percentage: EarningRule["percentage"]) {
+function formatPercentage(rule: EarningRule) {
+  const percentage = rule.share_percent ?? rule.percentage
+
   if (percentage === null || percentage === undefined || percentage === "") {
     return "待定"
   }
 
   return `${percentage}%`
+}
+
+function formatDate(date: string | null) {
+  if (!date) {
+    return "未设置"
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(date))
 }
 
 export default function ProjectDetailPage() {
@@ -72,6 +101,7 @@ export default function ProjectDetailPage() {
   const { loading: authLoading, user } = useAuth()
   const [project, setProject] = useState<Project | null>(null)
   const [earningRules, setEarningRules] = useState<EarningRule[]>([])
+  const [milestones, setMilestones] = useState<Milestone[]>([])
   const [loadingProject, setLoadingProject] = useState(true)
   const [notice, setNotice] = useState<Notice | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -82,14 +112,22 @@ export default function ProjectDetailPage() {
     const supabase = createClient()
 
     async function loadProject() {
-      const [{ data: projectData, error }, { data: earningsData }] =
-        await Promise.all([
-          supabase.from("projects").select("*").eq("id", projectId).single(),
-          supabase
-            .from("project_earnings")
-            .select("id, role, contribution_type, percentage")
-            .eq("project_id", projectId),
-        ])
+      const [
+        { data: projectData, error },
+        { data: earningsData },
+        { data: milestonesData },
+      ] = await Promise.all([
+        supabase.from("projects").select("*").eq("id", projectId).single(),
+        supabase
+          .from("project_earnings")
+          .select("id, role, contribution_type, percentage, share_percent")
+          .eq("project_id", projectId),
+        supabase
+          .from("project_milestones")
+          .select("id, title, description, status, due_date")
+          .eq("project_id", projectId)
+          .order("due_date", { ascending: true }),
+      ])
 
       if (!mounted) {
         return
@@ -102,6 +140,7 @@ export default function ProjectDetailPage() {
       }
 
       setEarningRules((earningsData ?? []) as EarningRule[])
+      setMilestones((milestonesData ?? []) as Milestone[])
       setLoadingProject(false)
     }
 
@@ -112,6 +151,7 @@ export default function ProjectDetailPage() {
 
       setProject(null)
       setEarningRules([])
+      setMilestones([])
       setLoadingProject(false)
     })
 
@@ -308,6 +348,67 @@ export default function ProjectDetailPage() {
             <div className="rounded-xl border border-white/10 bg-black/20 p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
+                  <h2 className="text-lg font-bold text-white">项目进度</h2>
+                  <p className="mt-1 text-sm text-white/45">
+                    项目里程碑、状态和截止日期
+                  </p>
+                </div>
+                {isProjectOwner ? (
+                  <Button
+                    type="button"
+                    className="bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
+                  >
+                    添加里程碑
+                  </Button>
+                ) : null}
+              </div>
+
+              {milestones.length === 0 ? (
+                <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-white/45">
+                  暂无里程碑
+                </div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {milestones.map((milestone) => {
+                    const milestoneStatus = milestone.status || "待开始"
+
+                    return (
+                      <div
+                        key={milestone.id}
+                        className="rounded-lg border border-white/10 bg-white/[0.03] p-4"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <h3 className="font-semibold text-white">
+                              {milestone.title || "未命名里程碑"}
+                            </h3>
+                            <p className="mt-2 text-sm leading-6 text-white/50">
+                              {milestone.description || "暂无描述"}
+                            </p>
+                            <p className="mt-2 text-xs text-white/35">
+                              截止日期：{formatDate(milestone.due_date)}
+                            </p>
+                          </div>
+                          <span
+                            className={cn(
+                              "w-fit shrink-0 rounded-full border px-3 py-1 text-xs font-medium",
+                              milestoneStatusStyles[milestoneStatus] ??
+                                milestoneStatusStyles["待开始"],
+                            )}
+                          >
+                            {milestoneStatus}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-black/20 p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
                   <h2 className="text-lg font-bold text-white">收益分配</h2>
                   <p className="mt-1 text-sm text-white/45">
                     项目角色、贡献类型与分成比例
@@ -342,7 +443,7 @@ export default function ProjectDetailPage() {
                       <span>{rule.role || "未设置"}</span>
                       <span>{rule.contribution_type || "未设置"}</span>
                       <span className="text-right font-mono text-[#8D87FF]">
-                        {formatPercentage(rule.percentage)}
+                        {formatPercentage(rule)}
                       </span>
                     </div>
                   ))}
