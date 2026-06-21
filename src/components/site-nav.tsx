@@ -119,6 +119,13 @@ export function SiteNav() {
             登录
           </Link>
         ) : (
+          <div className="flex items-center gap-3">
+            <Link
+              href="/enterprise/create"
+              className="hidden rounded-lg border border-[#6C63FF] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#6C63FF] md:inline-flex"
+            >
+              创建企业
+            </Link>
           <DropdownMenu>
             <DropdownMenuTrigger
               aria-label="打开用户菜单"
@@ -161,6 +168,7 @@ export function SiteNav() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         )}
       </nav>
     </header>
