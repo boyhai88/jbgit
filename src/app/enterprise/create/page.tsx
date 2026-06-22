@@ -1,9 +1,6 @@
-"use client"
+import { redirect } from "next/navigation"
 
-import { FormEvent, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
-
-import { useAuth } from "@/components/auth/auth-provider"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -15,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { createClient } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/server"
 
 function createSlug(value: string) {
   return value
@@ -25,68 +22,71 @@ function createSlug(value: string) {
     .replace(/^-+|-+$/g, "")
 }
 
-export default function EnterpriseCreatePage() {
-  const router = useRouter()
-  const { loading, user } = useAuth()
-  const [name, setName] = useState("")
-  const [description, setDescription] = useState("")
-  const [slug, setSlug] = useState("")
-  const [error, setError] = useState("")
-  const [submitting, setSubmitting] = useState(false)
-  const generatedSlug = useMemo(() => createSlug(name), [name])
-  const displaySlug = slug || generatedSlug
-
-  function handleNameChange(value: string) {
-    setName(value)
-
-    if (!slug) {
-      setError("")
-    }
+function getErrorMessage(error?: string) {
+  const messages: Record<string, string> = {
+    auth: "请先登录后再创建企业。",
+    name: "请填写企业名称。",
+    slug: "请填写企业标识。",
+    database: "创建企业失败，请稍后重试。",
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setError("")
+  return error ? messages[error] || error : null
+}
 
-    if (loading || submitting) {
-      return
-    }
+async function createEnterprise(formData: FormData) {
+  "use server"
 
-    if (!user) {
-      router.push("/auth/login")
-      return
-    }
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-    if (!name.trim()) {
-      setError("请填写企业名称")
-      return
-    }
+  if (!user) {
+    redirect("/auth/login")
+  }
 
-    if (!displaySlug) {
-      setError("请填写企业标识")
-      return
-    }
+  const name = String(formData.get("name") ?? "").trim()
+  const description = String(formData.get("description") ?? "").trim()
+  const rawSlug = String(formData.get("slug") ?? "").trim()
+  const slug = createSlug(rawSlug || name)
 
-    setSubmitting(true)
+  if (!name) {
+    redirect("/enterprise/create?error=name")
+  }
 
-    const supabase = createClient()
-    const { error: insertError } = await supabase.from("enterprises").insert({
-      name: name.trim(),
-      slug: displaySlug,
-      description: description.trim(),
-      owner_id: user.id,
-      status: "活跃",
+  if (!slug) {
+    redirect("/enterprise/create?error=slug")
+  }
+
+  const { error } = await supabase.from("enterprises").insert({
+    name,
+    slug,
+    description,
+    owner_id: user.id,
+    status: "活跃",
+  })
+
+  if (error) {
+    console.error("创建企业失败:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
     })
-
-    setSubmitting(false)
-
-    if (insertError) {
-      setError(insertError.message)
-      return
-    }
-
-    router.push("/enterprise/dashboard")
+    redirect(
+      `/enterprise/create?error=${encodeURIComponent(error.message || "database")}`,
+    )
   }
+
+  redirect("/enterprise/dashboard")
+}
+
+export default function EnterpriseCreatePage({
+  searchParams,
+}: {
+  searchParams?: { error?: string }
+}) {
+  const errorMessage = getErrorMessage(searchParams?.error)
 
   return (
     <main className="min-h-screen bg-[#05050B] px-6 py-10 text-white">
@@ -101,16 +101,15 @@ export default function EnterpriseCreatePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 pt-3">
-            <form className="space-y-5" onSubmit={handleSubmit}>
+            <form className="space-y-5" action={createEnterprise}>
               <div className="space-y-2">
                 <Label htmlFor="enterprise-name" className="text-white">
                   企业名称
                 </Label>
                 <Input
                   id="enterprise-name"
+                  name="name"
                   required
-                  value={name}
-                  onChange={(event) => handleNameChange(event.target.value)}
                   placeholder="例如：JBGIT Labs"
                   className="border-white/10 bg-black/20 text-white placeholder:text-white/30"
                 />
@@ -122,8 +121,7 @@ export default function EnterpriseCreatePage() {
                 </Label>
                 <Textarea
                   id="enterprise-description"
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
+                  name="description"
                   placeholder="介绍企业方向、团队规模或项目需求"
                   className="min-h-28 border-white/10 bg-black/20 text-white placeholder:text-white/30"
                 />
@@ -135,31 +133,30 @@ export default function EnterpriseCreatePage() {
                 </Label>
                 <Input
                   id="enterprise-slug"
-                  value={displaySlug}
-                  onChange={(event) => setSlug(createSlug(event.target.value))}
-                  placeholder="用于企业 URL"
+                  name="slug"
+                  placeholder="用于企业 URL，留空则根据企业名称自动生成"
                   className="border-white/10 bg-black/20 text-white placeholder:text-white/30"
                 />
                 <p className="text-xs text-white/40">
                   企业 URL：
                   <span className="text-[#8D87FF]">
-                    /enterprise/{displaySlug || "your-company"}
+                    /enterprise/your-company
                   </span>
                 </p>
               </div>
 
-              {error ? (
-                <div className="rounded-xl border border-red-500/35 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                  {error}
-                </div>
+              {errorMessage ? (
+                <Alert className="border-red-500/35 bg-red-500/10 text-red-100">
+                  <AlertTitle className="text-white">创建失败</AlertTitle>
+                  <AlertDescription>{errorMessage}</AlertDescription>
+                </Alert>
               ) : null}
 
               <Button
                 type="submit"
-                disabled={loading || submitting}
                 className="h-11 w-full bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
               >
-                {submitting ? "创建中..." : "创建企业"}
+                创建企业
               </Button>
             </form>
           </CardContent>

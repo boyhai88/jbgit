@@ -1,6 +1,9 @@
+"use client"
+
 import { BrainCircuit, CircleDollarSign, FolderKanban } from "lucide-react"
 import Link from "next/link"
 
+import { useAuth } from "@/components/auth/auth-provider"
 import { buttonVariants } from "@/components/ui/button"
 import {
   Card,
@@ -40,6 +43,9 @@ const features = [
 ]
 
 export default function Home() {
+  const { user } = useAuth()
+  const joinHref = user ? "/dashboard" : "/auth/login"
+
   return (
     <main className="min-h-screen bg-[#05050B] text-white">
       <section className="border-b border-white/10 bg-[radial-gradient(circle_at_84%_0%,rgba(108,99,255,0.2),transparent_30rem)]">
@@ -55,7 +61,7 @@ export default function Home() {
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Link
-              href="/auth/login"
+              href={joinHref}
               className={cn(
                 buttonVariants({ size: "lg" }),
                 "h-11 rounded-lg bg-[#6C63FF] px-6 text-white shadow-[0_14px_34px_rgba(108,99,255,0.28)] hover:bg-[#5B54E8]",
@@ -142,7 +148,7 @@ export default function Home() {
               </p>
             </div>
             <Link
-              href="/auth/login"
+              href={joinHref}
               className={cn(
                 buttonVariants({ size: "lg" }),
                 "h-11 shrink-0 rounded-lg bg-[#6C63FF] px-7 text-white hover:bg-[#5B54E8]",
