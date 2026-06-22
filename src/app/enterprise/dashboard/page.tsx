@@ -1,112 +1,145 @@
-"use client"
-
-import { FormEvent, useState } from "react"
 import Link from "next/link"
+import { redirect } from "next/navigation"
 
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { createClient } from "@/lib/supabase/server"
 
-type Member = {
-  id: number
-  name: string
-  email: string
-  role: "owner" | "admin" | "member"
-  status: "已加入" | "待接受"
-  joinedAt: string
+type EnterpriseRow = {
+  id: string
+  name: string | null
+  slug: string | null
+  status: string | null
+  description: string | null
 }
 
-const enterprise = {
-  name: "JBGIT Labs",
-  slug: "jbgit-labs",
-  status: "活跃",
-  description: "面向全球开发者的远程协作与项目交付团队。",
+type MemberRow = {
+  id: string | number
+  email: string | null
+  role: string | null
+  status: string | null
+  created_at: string | null
 }
 
-const stats = [
-  { label: "成员数", value: "28" },
-  { label: "进行中项目", value: "6" },
-  { label: "已完成项目", value: "42" },
-  { label: "总收益", value: "$128,600" },
-]
+type ProjectRow = {
+  id: string | number
+  status: string | null
+  budget: string | number | null
+}
 
-const initialMembers: Member[] = [
-  {
-    id: 1,
-    name: "Lin Chen",
-    email: "lin@jbgit.dev",
-    role: "owner",
-    status: "已加入",
-    joinedAt: "2026-06-20",
-  },
-  {
-    id: 2,
-    name: "Maya Patel",
-    email: "maya@jbgit.dev",
-    role: "admin",
-    status: "已加入",
-    joinedAt: "2026-06-18",
-  },
-  {
-    id: 3,
-    name: "Alex Kim",
-    email: "alex@jbgit.dev",
-    role: "member",
-    status: "已加入",
-    joinedAt: "2026-06-16",
-  },
-  {
-    id: 4,
-    name: "Nora Zhang",
-    email: "nora@jbgit.dev",
-    role: "member",
-    status: "已加入",
-    joinedAt: "2026-06-14",
-  },
-  {
-    id: 5,
-    name: "Ethan Wu",
-    email: "ethan@jbgit.dev",
-    role: "member",
-    status: "已加入",
-    joinedAt: "2026-06-12",
-  },
-]
-
-export default function EnterpriseDashboardPage() {
-  const [members, setMembers] = useState(initialMembers)
-  const [inviteOpen, setInviteOpen] = useState(false)
-  const [inviteEmail, setInviteEmail] = useState("")
-  const [inviteError, setInviteError] = useState("")
-
-  function handleInvite(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const email = inviteEmail.trim()
-
-    if (!email || !email.includes("@")) {
-      setInviteError("请输入有效邮箱")
-      return
-    }
-
-    const invitedMember: Member = {
-      id: Date.now(),
-      name: email.split("@")[0],
-      email,
-      role: "member",
-      status: "待接受",
-      joinedAt: new Date().toISOString().slice(0, 10),
-    }
-
-    setMembers((current) => [invitedMember, ...current])
-    setInviteEmail("")
-    setInviteError("")
-    setInviteOpen(false)
+function formatDate(date: string | null) {
+  if (!date) {
+    return "刚刚"
   }
 
-  function handleRemoveMember(memberId: number) {
-    setMembers((current) => current.filter((member) => member.id !== memberId))
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(date))
+}
+
+function getMemberName(email: string | null) {
+  if (!email) {
+    return "未命名成员"
   }
+
+  return email.split("@")[0]
+}
+
+function formatRevenue(projects: ProjectRow[]) {
+  const total = projects
+    .filter((project) => project.status === "已完成")
+    .reduce((sum, project) => {
+      const value =
+        typeof project.budget === "number"
+          ? project.budget
+          : Number(project.budget ?? 0)
+
+      return sum + (Number.isFinite(value) ? value : 0)
+    }, 0)
+
+  return `$${total.toLocaleString()}`
+}
+
+export default async function EnterpriseDashboardPage() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect("/auth/login")
+  }
+
+  const { data: enterpriseData, error: enterpriseError } = await supabase
+    .from("enterprises")
+    .select("id, name, slug, status, description")
+    .eq("owner_id", user.id)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (enterpriseError) {
+    console.error("读取企业数据失败:", enterpriseError)
+  }
+
+  if (!enterpriseData) {
+    return (
+      <main className="min-h-screen bg-[#05050B] px-6 py-10 text-white">
+        <section className="mx-auto flex min-h-[calc(100vh-10rem)] w-full max-w-3xl items-center justify-center">
+          <Card className="w-full rounded-2xl border-white/10 bg-[#10101A] py-0 text-center text-white shadow-none">
+            <CardContent className="p-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#6C63FF]">
+                ENTERPRISE DASHBOARD
+              </p>
+              <h1 className="mt-4 text-3xl font-black text-white">
+                请先创建企业
+              </h1>
+              <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-gray-300">
+                当前账号还没有拥有的企业。创建企业后即可查看成员、项目和收益数据。
+              </p>
+              <Link
+                href="/enterprise/create"
+                className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-[#6C63FF] px-5 text-sm font-medium text-white transition-colors hover:bg-[#5B54E8]"
+              >
+                创建企业
+              </Link>
+            </CardContent>
+          </Card>
+        </section>
+      </main>
+    )
+  }
+
+  const enterprise = enterpriseData as EnterpriseRow
+
+  const [{ data: membersData }, { data: projectsData }] = await Promise.all([
+    supabase
+      .from("enterprise_members")
+      .select("id, email, role, status, created_at")
+      .eq("enterprise_id", enterprise.id)
+      .order("created_at", { ascending: false })
+      .limit(5),
+    supabase
+      .from("projects")
+      .select("id, status, budget")
+      .eq("enterprise_id", enterprise.id),
+  ])
+
+  const members = (membersData ?? []) as MemberRow[]
+  const projects = (projectsData ?? []) as ProjectRow[]
+  const activeProjects = projects.filter(
+    (project) => project.status === "进行中",
+  ).length
+  const completedProjects = projects.filter(
+    (project) => project.status === "已完成",
+  ).length
+  const stats = [
+    { label: "成员数", value: String(members.length) },
+    { label: "进行中项目", value: String(activeProjects) },
+    { label: "已完成项目", value: String(completedProjects) },
+    { label: "总收益", value: formatRevenue(projects) },
+  ]
 
   return (
     <main className="min-h-screen bg-[#05050B] px-6 py-10 text-white">
@@ -117,18 +150,24 @@ export default function EnterpriseDashboardPage() {
               ENTERPRISE DASHBOARD
             </p>
             <h1 className="mt-3 text-4xl font-black tracking-normal text-white">
-              {enterprise.name}
+              {enterprise.name || "未命名企业"}
             </h1>
             <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
               <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-gray-300">
-                /enterprise/{enterprise.slug}
+                /enterprise/{enterprise.slug || "未设置"}
               </span>
-              <span className="rounded-full border border-emerald-500/35 bg-emerald-500/12 px-3 py-1 text-emerald-300">
-                订阅状态：{enterprise.status}
+              <span
+                className={
+                  enterprise.status === "已过期"
+                    ? "rounded-full border border-red-500/35 bg-red-500/12 px-3 py-1 text-red-300"
+                    : "rounded-full border border-emerald-500/35 bg-emerald-500/12 px-3 py-1 text-emerald-300"
+                }
+              >
+                订阅状态：{enterprise.status || "活跃"}
               </span>
             </div>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-gray-300">
-              {enterprise.description}
+              {enterprise.description || "暂无企业简介"}
             </p>
           </div>
 
@@ -161,66 +200,52 @@ export default function EnterpriseDashboardPage() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
           <Card className="rounded-2xl border-white/10 bg-[#10101A] py-0 text-white shadow-none">
-            <CardHeader className="flex flex-row items-center justify-between gap-4 p-6 pb-2">
+            <CardHeader className="p-6 pb-2">
               <CardTitle className="text-xl font-bold text-white">
                 成员列表
               </CardTitle>
-              <Button
-                type="button"
-                onClick={() => setInviteOpen(true)}
-                className="bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
-              >
-                邀请成员
-              </Button>
             </CardHeader>
             <CardContent className="space-y-3 p-6 pt-4">
-              {members.slice(0, 5).map((member) => (
-                <div
-                  key={member.id}
-                  className="flex flex-col gap-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#6C63FF] text-sm font-bold text-white">
-                      {member.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate font-semibold text-white">
-                          {member.name}
-                        </p>
-                        <span className="rounded-full border border-[#6C63FF]/30 bg-[#6C63FF]/15 px-2 py-0.5 text-xs text-[#8D87FF]">
-                          {member.role}
-                        </span>
-                        <span
-                          className={
-                            member.status === "待接受"
-                              ? "rounded-full border border-amber-500/35 bg-amber-500/12 px-2 py-0.5 text-xs text-amber-300"
-                              : "rounded-full border border-emerald-500/35 bg-emerald-500/12 px-2 py-0.5 text-xs text-emerald-300"
-                          }
-                        >
-                          {member.status}
-                        </span>
+              {members.length === 0 ? (
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5 text-sm text-gray-300">
+                  暂无成员
+                </div>
+              ) : (
+                members.map((member) => (
+                  <div
+                    key={member.id}
+                    className="flex flex-col gap-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#6C63FF] text-sm font-bold text-white">
+                        {getMemberName(member.email).charAt(0).toUpperCase()}
                       </div>
-                      <p className="mt-1 truncate text-xs text-gray-300">
-                        {member.email} · {member.joinedAt}
-                      </p>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate font-semibold text-white">
+                            {getMemberName(member.email)}
+                          </p>
+                          <span className="rounded-full border border-[#6C63FF]/30 bg-[#6C63FF]/15 px-2 py-0.5 text-xs text-[#8D87FF]">
+                            {member.role || "member"}
+                          </span>
+                          <span
+                            className={
+                              member.status === "待接受"
+                                ? "rounded-full border border-amber-500/35 bg-amber-500/12 px-2 py-0.5 text-xs text-amber-300"
+                                : "rounded-full border border-emerald-500/35 bg-emerald-500/12 px-2 py-0.5 text-xs text-emerald-300"
+                            }
+                          >
+                            {member.status || "已加入"}
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate text-xs text-gray-300">
+                          {member.email} · {formatDate(member.created_at)}
+                        </p>
+                      </div>
                     </div>
                   </div>
-
-                  {member.role !== "owner" ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => handleRemoveMember(member.id)}
-                      className="border-red-500/35 bg-transparent text-red-200 hover:bg-red-500/10 hover:text-red-100"
-                    >
-                      移除
-                    </Button>
-                  ) : (
-                    <span className="text-xs text-gray-300">企业主</span>
-                  )}
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
 
@@ -232,7 +257,7 @@ export default function EnterpriseDashboardPage() {
             </CardHeader>
             <CardContent className="space-y-4 p-6 pt-4">
               <p className="text-sm leading-6 text-gray-300">
-                修改企业名称、简介、标识，保持企业资料与团队定位一致。
+                企业数据来自数据库，并通过服务端 Supabase 客户端按当前用户读取。
               </p>
               <div className="grid gap-3">
                 {["修改名称", "修改简介", "修改标识"].map((item) => (
@@ -249,81 +274,6 @@ export default function EnterpriseDashboardPage() {
           </Card>
         </div>
       </section>
-
-      {inviteOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="invite-member-title"
-        >
-          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#10101A] p-6 text-white shadow-2xl shadow-black/40">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2
-                  id="invite-member-title"
-                  className="text-xl font-bold text-white"
-                >
-                  邀请成员
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-gray-300">
-                  输入成员邮箱，发送企业邀请。新成员默认角色为 member。
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setInviteOpen(false)}
-                className="rounded-lg px-2 py-1 text-sm text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
-                aria-label="关闭邀请对话框"
-              >
-                关闭
-              </button>
-            </div>
-
-            <form className="mt-5 space-y-4" onSubmit={handleInvite}>
-              <div className="space-y-2">
-                <Label htmlFor="invite-email" className="text-white">
-                  成员邮箱
-                </Label>
-                <Input
-                  id="invite-email"
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(event) => {
-                    setInviteEmail(event.target.value)
-                    setInviteError("")
-                  }}
-                  placeholder="developer@example.com"
-                  className="border-white/10 bg-black/20 text-white placeholder:text-white/30"
-                />
-              </div>
-
-              {inviteError ? (
-                <div className="rounded-xl border border-red-500/35 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                  {inviteError}
-                </div>
-              ) : null}
-
-              <div className="flex justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setInviteOpen(false)}
-                  className="border-white/10 bg-transparent text-white hover:bg-white/10"
-                >
-                  取消
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
-                >
-                  发送邀请
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
     </main>
   )
 }

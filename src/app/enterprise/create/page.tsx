@@ -3,6 +3,7 @@
 import { FormEvent, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 
+import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -14,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { createClient } from "@/lib/supabase/client"
 
 function createSlug(value: string) {
   return value
@@ -25,10 +27,12 @@ function createSlug(value: string) {
 
 export default function EnterpriseCreatePage() {
   const router = useRouter()
+  const { loading, user } = useAuth()
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [slug, setSlug] = useState("")
   const [error, setError] = useState("")
+  const [submitting, setSubmitting] = useState(false)
   const generatedSlug = useMemo(() => createSlug(name), [name])
   const displaySlug = slug || generatedSlug
 
@@ -40,9 +44,18 @@ export default function EnterpriseCreatePage() {
     }
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError("")
+
+    if (loading || submitting) {
+      return
+    }
+
+    if (!user) {
+      router.push("/auth/login")
+      return
+    }
 
     if (!name.trim()) {
       setError("请填写企业名称")
@@ -51,6 +64,24 @@ export default function EnterpriseCreatePage() {
 
     if (!displaySlug) {
       setError("请填写企业标识")
+      return
+    }
+
+    setSubmitting(true)
+
+    const supabase = createClient()
+    const { error: insertError } = await supabase.from("enterprises").insert({
+      name: name.trim(),
+      slug: displaySlug,
+      description: description.trim(),
+      owner_id: user.id,
+      status: "活跃",
+    })
+
+    setSubmitting(false)
+
+    if (insertError) {
+      setError(insertError.message)
       return
     }
 
@@ -125,9 +156,10 @@ export default function EnterpriseCreatePage() {
 
               <Button
                 type="submit"
+                disabled={loading || submitting}
                 className="h-11 w-full bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
               >
-                创建企业
+                {submitting ? "创建中..." : "创建企业"}
               </Button>
             </form>
           </CardContent>
