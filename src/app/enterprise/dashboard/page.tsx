@@ -133,6 +133,122 @@ async function updateEnterpriseSetting(formData: FormData) {
   redirect("/enterprise/dashboard")
 }
 
+async function inviteEnterpriseMember(formData: FormData) {
+  "use server"
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect("/auth/login")
+  }
+
+  const enterpriseId = String(formData.get("enterpriseId") ?? "")
+  const email = String(formData.get("email") ?? "").trim().toLowerCase()
+
+  if (!enterpriseId || !email || !email.includes("@")) {
+    redirect("/enterprise/dashboard?invite=1")
+  }
+
+  const { data: enterprise } = await supabase
+    .from("enterprises")
+    .select("id")
+    .eq("id", enterpriseId)
+    .eq("owner_id", user.id)
+    .maybeSingle()
+
+  if (!enterprise) {
+    redirect("/enterprise/dashboard")
+  }
+
+  const { data: invitedUser, error: userLookupError } = await supabase
+    .from("users")
+    .select("id, email")
+    .eq("email", email)
+    .maybeSingle()
+
+  if (userLookupError) {
+    console.error("查询邀请用户失败:", userLookupError)
+    redirect("/enterprise/dashboard?invite=1")
+  }
+
+  if (!invitedUser?.id) {
+    console.error("邀请成员失败，用户不存在:", email)
+    redirect("/enterprise/dashboard?invite=1")
+  }
+
+  const { error } = await supabase.from("enterprise_members").insert({
+    enterprise_id: enterpriseId,
+    user_id: invitedUser.id,
+    email,
+    role: "member",
+    status: "待接受",
+  })
+
+  if (error) {
+    console.error("邀请成员写入失败:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    })
+  }
+
+  revalidatePath("/enterprise/dashboard")
+  redirect("/enterprise/dashboard")
+}
+
+async function removeEnterpriseMember(formData: FormData) {
+  "use server"
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect("/auth/login")
+  }
+
+  const enterpriseId = String(formData.get("enterpriseId") ?? "")
+  const memberId = String(formData.get("memberId") ?? "")
+
+  if (!enterpriseId || !memberId) {
+    redirect("/enterprise/dashboard")
+  }
+
+  const { data: enterprise } = await supabase
+    .from("enterprises")
+    .select("id")
+    .eq("id", enterpriseId)
+    .eq("owner_id", user.id)
+    .maybeSingle()
+
+  if (!enterprise) {
+    redirect("/enterprise/dashboard")
+  }
+
+  const { error } = await supabase
+    .from("enterprise_members")
+    .delete()
+    .eq("id", memberId)
+    .eq("enterprise_id", enterpriseId)
+
+  if (error) {
+    console.error("移除成员失败:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    })
+  }
+
+  revalidatePath("/enterprise/dashboard")
+  redirect("/enterprise/dashboard")
+}
+
 function getEditTitle(field: EditField) {
   if (field === "name") {
     return "修改名称"
@@ -160,7 +276,7 @@ function getEditValue(enterprise: EnterpriseRow, field: EditField) {
 export default async function EnterpriseDashboardPage({
   searchParams,
 }: {
-  searchParams?: { edit?: string }
+  searchParams?: { edit?: string; invite?: string }
 }) {
   const supabase = await createClient()
   const {
@@ -219,6 +335,7 @@ export default async function EnterpriseDashboardPage({
     editParam === "slug"
       ? editParam
       : null
+  const inviteOpen = searchParams?.invite === "1"
 
   const [{ data: membersData }, { data: projectsData }] = await Promise.all([
     supabase
@@ -307,10 +424,16 @@ export default async function EnterpriseDashboardPage({
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
           <Card className="rounded-2xl border-white/10 bg-[#10101A] py-0 text-white shadow-none">
-            <CardHeader className="p-6 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between gap-4 p-6 pb-2">
               <CardTitle className="text-xl font-bold text-white">
                 成员列表
               </CardTitle>
+              <Link
+                href="/enterprise/dashboard?invite=1"
+                className="inline-flex h-10 items-center justify-center rounded-md bg-[#6C63FF] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#5B54E8]"
+              >
+                邀请成员
+              </Link>
             </CardHeader>
             <CardContent className="space-y-3 p-6 pt-4">
               {members.length === 0 ? (
@@ -350,6 +473,28 @@ export default async function EnterpriseDashboardPage({
                         </p>
                       </div>
                     </div>
+                    {member.role !== "owner" ? (
+                      <form action={removeEnterpriseMember}>
+                        <input
+                          type="hidden"
+                          name="enterpriseId"
+                          value={enterprise.id}
+                        />
+                        <input
+                          type="hidden"
+                          name="memberId"
+                          value={member.id}
+                        />
+                        <button
+                          type="submit"
+                          className="inline-flex h-9 items-center justify-center rounded-md border border-red-500/35 bg-transparent px-3 text-sm font-medium text-red-200 transition-colors hover:bg-red-500/10 hover:text-red-100"
+                        >
+                          移除
+                        </button>
+                      </form>
+                    ) : (
+                      <span className="text-xs text-gray-300">企业主</span>
+                    )}
                   </div>
                 ))
               )}
@@ -451,6 +596,70 @@ export default async function EnterpriseDashboardPage({
                   className="inline-flex h-10 items-center justify-center rounded-md bg-[#6C63FF] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#5B54E8]"
                 >
                   保存修改
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {inviteOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="invite-member-title"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#10101A] p-6 text-white shadow-2xl shadow-black/40">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2
+                  id="invite-member-title"
+                  className="text-xl font-bold text-white"
+                >
+                  邀请成员
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-gray-300">
+                  输入已注册用户邮箱，系统会创建待接受的企业成员邀请。
+                </p>
+              </div>
+              <Link
+                href="/enterprise/dashboard"
+                className="rounded-lg px-2 py-1 text-sm text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+                aria-label="关闭邀请成员对话框"
+              >
+                关闭
+              </Link>
+            </div>
+
+            <form className="mt-5 space-y-4" action={inviteEnterpriseMember}>
+              <input type="hidden" name="enterpriseId" value={enterprise.id} />
+              <div className="space-y-2">
+                <Label htmlFor="invite-email" className="text-white">
+                  成员邮箱
+                </Label>
+                <Input
+                  id="invite-email"
+                  name="email"
+                  type="email"
+                  required
+                  placeholder="developer@example.com"
+                  className="border-white/10 bg-black/20 text-white placeholder:text-white/30"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <Link
+                  href="/enterprise/dashboard"
+                  className="inline-flex h-10 items-center justify-center rounded-md border border-white/10 bg-transparent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10"
+                >
+                  取消
+                </Link>
+                <button
+                  type="submit"
+                  className="inline-flex h-10 items-center justify-center rounded-md bg-[#6C63FF] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#5B54E8]"
+                >
+                  发送邀请
                 </button>
               </div>
             </form>
