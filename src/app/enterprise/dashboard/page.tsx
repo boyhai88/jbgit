@@ -15,6 +15,7 @@ type EnterpriseRow = {
   slug: string | null
   status: string | null
   description: string | null
+  owner_id: string | null
 }
 
 type MemberRow = {
@@ -311,7 +312,7 @@ export default async function EnterpriseDashboardPage({
 
   const { data: enterpriseRows, error: enterpriseError } = await supabase
     .from("enterprises")
-    .select("id, name, slug, status, description")
+    .select("id, name, slug, status, description, owner_id")
     .eq("owner_id", user.id)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -390,21 +391,25 @@ export default async function EnterpriseDashboardPage({
           }
         : null
 
+  const currentEnterpriseId = enterprise.id
+
+  console.log("当前企业成员查询 enterprise_id:", currentEnterpriseId)
+
   const [{ data: membersData }, { data: projectsData }] = await Promise.all([
     supabase
       .from("enterprise_members")
       .select("id, email, role, status, created_at")
-      .eq("enterprise_id", enterprise.id)
-      .order("created_at", { ascending: false })
-      .limit(5),
+      .eq("enterprise_id", currentEnterpriseId)
+      .order("created_at", { ascending: false }),
     supabase
       .from("projects")
       .select("id, status, budget")
-      .eq("enterprise_id", enterprise.id),
+      .eq("enterprise_id", currentEnterpriseId),
   ])
 
   const members = (membersData ?? []) as MemberRow[]
   const projects = (projectsData ?? []) as ProjectRow[]
+  const isEnterpriseOwner = enterprise.owner_id === user.id
   const activeProjects = projects.filter(
     (project) => project.status === "进行中",
   ).length
@@ -535,7 +540,7 @@ export default async function EnterpriseDashboardPage({
                         </p>
                       </div>
                     </div>
-                    {member.role !== "owner" ? (
+                    {isEnterpriseOwner && member.role !== "owner" ? (
                       <form action={removeEnterpriseMember}>
                         <input
                           type="hidden"
