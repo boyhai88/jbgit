@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -77,6 +78,8 @@ function formatRevenue(projects: ProjectRow[]) {
 async function updateEnterpriseSetting(formData: FormData) {
   "use server"
 
+  console.log("企业设置 formData:", Object.fromEntries(formData.entries()))
+
   const supabase = await createClient()
   const {
     data: { user },
@@ -91,11 +94,17 @@ async function updateEnterpriseSetting(formData: FormData) {
   const rawValue = String(formData.get("value") ?? "")
   const value = field === "slug" ? createSlug(rawValue) : rawValue.trim()
 
+  console.log("企业设置 enterpriseId:", enterpriseId)
+  console.log("企业设置 field:", field)
+  console.log("企业设置 value:", value)
+
   if (!enterpriseId || !["name", "description", "slug"].includes(field)) {
+    console.error("企业设置参数无效:", { enterpriseId, field })
     redirect("/enterprise/dashboard")
   }
 
   if (!value) {
+    console.error("企业设置 value 为空:", { enterpriseId, field })
     redirect(`/enterprise/dashboard?edit=${field}`)
   }
 
@@ -110,8 +119,17 @@ async function updateEnterpriseSetting(formData: FormData) {
 
   if (error) {
     console.error("保存企业设置失败:", error)
+    console.error("保存企业设置错误详情:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    })
+  } else {
+    console.log("保存企业设置成功:", { enterpriseId, field, value })
   }
 
+  revalidatePath("/enterprise/dashboard")
   redirect("/enterprise/dashboard")
 }
 
