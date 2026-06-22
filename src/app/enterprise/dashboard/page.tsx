@@ -2,6 +2,9 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { createClient } from "@/lib/supabase/server"
 
 type EnterpriseRow = {
@@ -24,6 +27,16 @@ type ProjectRow = {
   id: string | number
   status: string | null
   budget: string | number | null
+}
+
+type EditField = "name" | "description" | "slug"
+
+function createSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+    .replace(/^-+|-+$/g, "")
 }
 
 function formatDate(date: string | null) {
@@ -61,7 +74,76 @@ function formatRevenue(projects: ProjectRow[]) {
   return `$${total.toLocaleString()}`
 }
 
-export default async function EnterpriseDashboardPage() {
+async function updateEnterpriseSetting(formData: FormData) {
+  "use server"
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect("/auth/login")
+  }
+
+  const enterpriseId = String(formData.get("enterpriseId") ?? "")
+  const field = String(formData.get("field") ?? "") as EditField
+  const rawValue = String(formData.get("value") ?? "")
+  const value = field === "slug" ? createSlug(rawValue) : rawValue.trim()
+
+  if (!enterpriseId || !["name", "description", "slug"].includes(field)) {
+    redirect("/enterprise/dashboard")
+  }
+
+  if (!value) {
+    redirect(`/enterprise/dashboard?edit=${field}`)
+  }
+
+  const { error } = await supabase
+    .from("enterprises")
+    .update({
+      [field]: value,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", enterpriseId)
+    .eq("owner_id", user.id)
+
+  if (error) {
+    console.error("保存企业设置失败:", error)
+  }
+
+  redirect("/enterprise/dashboard")
+}
+
+function getEditTitle(field: EditField) {
+  if (field === "name") {
+    return "修改名称"
+  }
+
+  if (field === "description") {
+    return "修改简介"
+  }
+
+  return "修改标识"
+}
+
+function getEditValue(enterprise: EnterpriseRow, field: EditField) {
+  if (field === "name") {
+    return enterprise.name || ""
+  }
+
+  if (field === "description") {
+    return enterprise.description || ""
+  }
+
+  return enterprise.slug || ""
+}
+
+export default async function EnterpriseDashboardPage({
+  searchParams,
+}: {
+  searchParams?: { edit?: string }
+}) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -112,6 +194,13 @@ export default async function EnterpriseDashboardPage() {
   }
 
   const enterprise = enterpriseData as EnterpriseRow
+  const editParam = searchParams?.edit
+  const editField =
+    editParam === "name" ||
+    editParam === "description" ||
+    editParam === "slug"
+      ? editParam
+      : null
 
   const [{ data: membersData }, { data: projectsData }] = await Promise.all([
     supabase
@@ -172,7 +261,7 @@ export default async function EnterpriseDashboardPage() {
           </div>
 
           <Link
-            href="/enterprise/create"
+            href="/enterprise/dashboard?edit=name"
             className="inline-flex h-10 items-center justify-center rounded-md bg-[#6C63FF] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#5B54E8]"
           >
             企业设置
@@ -257,16 +346,20 @@ export default async function EnterpriseDashboardPage() {
             </CardHeader>
             <CardContent className="space-y-4 p-6 pt-4">
               <p className="text-sm leading-6 text-gray-300">
-                企业数据来自数据库，并通过服务端 Supabase 客户端按当前用户读取。
+                修改企业名称、简介、标识，保存后刷新页面显示新数据。
               </p>
               <div className="grid gap-3">
-                {["修改名称", "修改简介", "修改标识"].map((item) => (
+                {[
+                  { label: "修改名称", field: "name" },
+                  { label: "修改简介", field: "description" },
+                  { label: "修改标识", field: "slug" },
+                ].map((item) => (
                   <Link
-                    key={item}
-                    href="/enterprise/create"
+                    key={item.field}
+                    href={`/enterprise/dashboard?edit=${item.field}`}
                     className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-white transition-colors hover:border-[#6C63FF] hover:text-[#8D87FF]"
                   >
-                    {item}
+                    {item.label}
                   </Link>
                 ))}
               </div>
@@ -274,6 +367,78 @@ export default async function EnterpriseDashboardPage() {
           </Card>
         </div>
       </section>
+
+      {editField ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="enterprise-edit-title"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#10101A] p-6 text-white shadow-2xl shadow-black/40">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2
+                  id="enterprise-edit-title"
+                  className="text-xl font-bold text-white"
+                >
+                  {getEditTitle(editField)}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-gray-300">
+                  保存后会使用服务端 Supabase 客户端写入数据库。
+                </p>
+              </div>
+              <Link
+                href="/enterprise/dashboard"
+                className="rounded-lg px-2 py-1 text-sm text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+                aria-label="关闭企业设置对话框"
+              >
+                关闭
+              </Link>
+            </div>
+
+            <form className="mt-5 space-y-4" action={updateEnterpriseSetting}>
+              <input type="hidden" name="enterpriseId" value={enterprise.id} />
+              <input type="hidden" name="field" value={editField} />
+              <div className="space-y-2">
+                <Label htmlFor="enterprise-edit-value" className="text-white">
+                  {getEditTitle(editField)}
+                </Label>
+                {editField === "description" ? (
+                  <Textarea
+                    id="enterprise-edit-value"
+                    name="value"
+                    defaultValue={getEditValue(enterprise, editField)}
+                    className="min-h-28 border-white/10 bg-black/20 text-white placeholder:text-white/30"
+                  />
+                ) : (
+                  <Input
+                    id="enterprise-edit-value"
+                    name="value"
+                    defaultValue={getEditValue(enterprise, editField)}
+                    className="border-white/10 bg-black/20 text-white placeholder:text-white/30"
+                  />
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <Link
+                  href="/enterprise/dashboard"
+                  className="inline-flex h-10 items-center justify-center rounded-md border border-white/10 bg-transparent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10"
+                >
+                  取消
+                </Link>
+                <button
+                  type="submit"
+                  className="inline-flex h-10 items-center justify-center rounded-md bg-[#6C63FF] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#5B54E8]"
+                >
+                  保存修改
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </main>
   )
 }
