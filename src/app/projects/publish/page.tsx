@@ -81,26 +81,6 @@ const percentageOptions = [
   "100",
 ]
 
-const roleOptions = [
-  "前端开发",
-  "后端开发",
-  "全栈开发",
-  "AI工程师",
-  "DevOps工程师",
-  "产品经理",
-  "UI设计师",
-]
-
-const contributionOptions = [
-  "功能开发",
-  "页面开发",
-  "API开发",
-  "数据库设计",
-  "架构设计",
-  "测试",
-  "文档",
-]
-
 const forbiddenWords = [
   "色情",
   "暴力",
@@ -116,18 +96,10 @@ const forbiddenWords = [
   "病毒",
 ]
 
-type RevenueRow = {
-  id: number
-  role: string
-  contribution: string
-  percentage: string
-}
-
 type PhaseRow = {
   id: number
   name: string
   headcount: string
-  skills: string[]
   sharePercent: string
 }
 
@@ -177,19 +149,9 @@ export default function PublishProjectPage() {
       id: 1,
       name: "",
       headcount: "1",
-      skills: [],
       sharePercent: percentageOptions[3],
     },
   ])
-  const [revenueRows, setRevenueRows] = useState<RevenueRow[]>([
-    {
-      id: 1,
-      role: roleOptions[0],
-      contribution: contributionOptions[0],
-      percentage: percentageOptions[3],
-    },
-  ])
-
   const descriptionLength = getContentLength(description)
 
   useEffect(() => {
@@ -228,18 +190,6 @@ export default function PublishProjectPage() {
     setCustomSkill("")
   }
 
-  function addRevenueRow() {
-    setRevenueRows((rows) => [
-      ...rows,
-      {
-        id: Date.now(),
-        role: roleOptions[0],
-        contribution: contributionOptions[0],
-        percentage: percentageOptions[3],
-      },
-    ])
-  }
-
   function addPhaseRow() {
     setPhaseRows((rows) => [
       ...rows,
@@ -247,7 +197,6 @@ export default function PublishProjectPage() {
         id: Date.now(),
         name: "",
         headcount: "1",
-        skills: [],
         sharePercent: percentageOptions[3],
       },
     ])
@@ -266,13 +215,6 @@ export default function PublishProjectPage() {
     }
 
     const normalized = text.toLowerCase()
-    const skillPool = selectedSkills.length > 0 ? selectedSkills : presetSkills
-    const pickSkills = (preferred: string[]) => {
-      const matched = preferred.filter((skill) => skillPool.includes(skill))
-      const fallback = skillPool.filter((skill) => !matched.includes(skill))
-
-      return [...matched, ...fallback].slice(0, 3)
-    }
     const hasAi = normalized.includes("ai") || normalized.includes("llm")
     const hasWeb3 =
       normalized.includes("web3") ||
@@ -289,14 +231,12 @@ export default function PublishProjectPage() {
         id: Date.now(),
         name: "需求梳理与技术方案",
         headcount: "1",
-        skills: pickSkills(["产品", "TypeScript", "Node.js"]),
         sharePercent: "15",
       },
       {
         id: Date.now() + 1,
         name: hasBackend ? "后端 API 与数据模型" : "核心功能开发",
         headcount: hasBackend ? "2" : "1",
-        skills: pickSkills(["Node.js", "Python", "TypeScript"]),
         sharePercent: "25",
       },
       {
@@ -307,25 +247,18 @@ export default function PublishProjectPage() {
             ? "链上交互与合约集成"
             : "前端界面与交互实现",
         headcount: "2",
-        skills: hasAi
-          ? pickSkills(["AI/ML", "Python", "TypeScript"])
-          : hasWeb3
-            ? pickSkills(["Solidity", "Web3", "React"])
-            : pickSkills(["React", "TypeScript", "Next.js"]),
         sharePercent: "30",
       },
       {
         id: Date.now() + 3,
         name: "测试验收与上线交付",
         headcount: "1",
-        skills: pickSkills(["DevOps", "TypeScript", "Node.js"]),
         sharePercent: "20",
       },
       {
         id: Date.now() + 4,
         name: "文档沉淀与运营支持",
         headcount: "1",
-        skills: pickSkills(["产品", "React", "TypeScript"]),
         sharePercent: "10",
       },
     ]
@@ -344,35 +277,10 @@ export default function PublishProjectPage() {
 
   function updatePhaseRow(
     id: number,
-    field: keyof Omit<PhaseRow, "id" | "skills">,
+    field: keyof Omit<PhaseRow, "id">,
     value: string,
   ) {
     setPhaseRows((rows) =>
-      rows.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
-    )
-  }
-
-  function togglePhaseSkill(id: number, skill: string) {
-    setPhaseRows((rows) =>
-      rows.map((row) =>
-        row.id === id
-          ? {
-              ...row,
-              skills: row.skills.includes(skill)
-                ? row.skills.filter((item) => item !== skill)
-                : [...row.skills, skill],
-            }
-          : row,
-      ),
-    )
-  }
-
-  function updateRevenueRow(
-    id: number,
-    field: keyof Omit<RevenueRow, "id">,
-    value: string,
-  ) {
-    setRevenueRows((rows) =>
       rows.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
     )
   }
@@ -426,30 +334,17 @@ export default function PublishProjectPage() {
     const formData = new FormData(event.currentTarget)
     const name = String(formData.get("projectName") ?? "").trim()
     const descriptionValue = description.trim()
-    const earnings = revenueRows
-      .map((row) => ({
-        role: row.role.trim(),
-        contribution_type: row.contribution.trim(),
-        share_percent: row.percentage.trim(),
-      }))
-      .filter(
-        (row) =>
-          row.role.length > 0 ||
-          row.contribution_type.length > 0 ||
-          row.share_percent.length > 0,
-      )
     const phases = phaseRows
       .map((row) => ({
         name: row.name.trim(),
         headcount: row.headcount.trim(),
-        skills: row.skills,
         share_percent: row.sharePercent.trim(),
       }))
       .filter(
         (row) =>
           row.name.length > 0 ||
-          row.share_percent.length > 0 ||
-          row.skills.length > 0,
+          row.headcount.length > 0 ||
+          row.share_percent.length > 0,
       )
 
     const hasInvalidPhase = phases.some(
@@ -457,7 +352,6 @@ export default function PublishProjectPage() {
         !phase.name ||
         !phase.headcount ||
         Number(phase.headcount) <= 0 ||
-        phase.skills.length === 0 ||
         !phase.share_percent ||
         Number(phase.share_percent) <= 0,
     )
@@ -466,7 +360,21 @@ export default function PublishProjectPage() {
       setNotice({
         type: "error",
         title: "请完善工序信息",
-        message: "已填写的工序需要包含名称、所需人数、技能标签和分成比例。",
+        message: "已填写的工序需要包含名称、所需人数和分成比例。",
+      })
+      return
+    }
+
+    const phaseShareTotal = phases.reduce(
+      (total, phase) => total + Number(phase.share_percent),
+      0,
+    )
+
+    if (phases.length > 0 && phaseShareTotal !== 100) {
+      setNotice({
+        type: "error",
+        title: "请调整工序分成比例",
+        message: `工序分成比例总和必须为100%，当前为${phaseShareTotal}%。`,
       })
       return
     }
@@ -557,40 +465,11 @@ export default function PublishProjectPage() {
       return
     }
 
-    if (earnings.length > 0) {
-      const earningPayload = earnings.map((earning) => ({
-        project_id: project.id,
-        user_id: user.id,
-        role: earning.role,
-        contribution_type: earning.contribution_type,
-        share_percent: Number(earning.share_percent),
-      }))
-
-      console.log("正在插入收益分配：", earningPayload)
-
-      const { error: earningsError } = await supabase
-        .from("project_earnings")
-        .insert(earningPayload)
-
-      console.log("收益分配插入结果：", { earningsError })
-
-      if (earningsError) {
-        setSubmitting(false)
-        setNotice({
-          type: "error",
-          title: "收益分配保存失败",
-          message: earningsError.message,
-        })
-        return
-      }
-    }
-
     if (phases.length > 0) {
       const phasePayload = phases.map((phase, index) => ({
         project_id: project.id,
         name: phase.name,
         headcount: Number(phase.headcount),
-        skills: phase.skills,
         share_percent: Number(phase.share_percent),
         sort_order: index + 1,
       }))
@@ -650,7 +529,7 @@ export default function PublishProjectPage() {
           <CardHeader>
             <CardTitle className="text-xl">项目信息</CardTitle>
             <CardDescription className="text-white/55">
-              完善项目需求、预算、技能标签与收益分配。
+              完善项目需求、预算、技能标签与工序分成。
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -839,172 +718,94 @@ export default function PublishProjectPage() {
 
                 <div className="space-y-4">
                   {phaseRows.map((phase, index) => (
-                    <div
+                    <Card
                       key={phase.id}
-                      className="space-y-4 rounded-xl border border-white/10 bg-black/20 p-4"
+                      className="rounded-xl border-white/10 bg-black/20 py-0 text-white"
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium text-white/80">
-                          工序 {index + 1}
-                        </p>
+                      <CardHeader className="flex flex-row items-center justify-between gap-3 p-4 pb-2">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-9 shrink-0 items-center justify-center rounded-lg bg-[#6C63FF] px-3 text-sm font-bold text-white">
+                            {`工序 ${index + 1}`}
+                          </span>
+                        </div>
                         {phaseRows.length > 1 ? (
                           <button
                             type="button"
                             onClick={() => removePhaseRow(phase.id)}
-                            className="text-xs text-red-300 transition hover:text-red-200"
+                            className="rounded-lg border border-red-500/35 px-3 py-1.5 text-xs text-red-300 transition hover:bg-red-500/10 hover:text-red-200"
                           >
                             删除
                           </button>
                         ) : null}
-                      </div>
+                      </CardHeader>
+                      <CardContent className="p-4 pt-2">
+                        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_140px_160px]">
+                          <label className="space-y-2">
+                            <Label className="text-xs text-white/55">
+                              工序名称
+                            </Label>
+                            <Input
+                              value={phase.name}
+                              onChange={(event) =>
+                                updatePhaseRow(
+                                  phase.id,
+                                  "name",
+                                  event.target.value,
+                                )
+                              }
+                              placeholder="工序名称"
+                              className="h-11 border-white/10 bg-[#11111D] text-base font-semibold text-white placeholder:text-white/35"
+                            />
+                          </label>
 
-                      <div className="grid gap-3 md:grid-cols-[1fr_140px_160px]">
-                        <Input
-                          value={phase.name}
-                          onChange={(event) =>
-                            updatePhaseRow(phase.id, "name", event.target.value)
-                          }
-                          placeholder="工序名称"
-                          className="border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
-                        />
-                        <Input
-                          type="number"
-                          min="1"
-                          value={phase.headcount}
-                          onChange={(event) =>
-                            updatePhaseRow(
-                              phase.id,
-                              "headcount",
-                              event.target.value,
-                            )
-                          }
-                          placeholder="所需人数"
-                          className="border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
-                        />
-                        <Input
-                          type="number"
-                          min="1"
-                          max="100"
-                          value={phase.sharePercent}
-                          onChange={(event) =>
-                            updatePhaseRow(
-                              phase.id,
-                              "sharePercent",
-                              event.target.value,
-                            )
-                          }
-                          placeholder="分成比例 %"
-                          className="border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
-                        />
-                      </div>
+                          <label className="space-y-2">
+                            <Label className="text-xs text-white/55">
+                              招募人数
+                            </Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={phase.headcount}
+                              onChange={(event) =>
+                                updatePhaseRow(
+                                  phase.id,
+                                  "headcount",
+                                  event.target.value,
+                                )
+                              }
+                              placeholder="人数"
+                              className="h-11 border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
+                            />
+                          </label>
 
-                      <div className="space-y-2">
-                        <p className="text-xs text-white/45">技能标签</p>
-                        <div className="flex flex-wrap gap-2">
-                          {presetSkills.map((skill) => {
-                            const selected = phase.skills.includes(skill)
-
-                            return (
-                              <button
-                                key={`${phase.id}-${skill}`}
-                                type="button"
-                                onClick={() => togglePhaseSkill(phase.id, skill)}
-                                className={
-                                  selected
-                                    ? "rounded-full border border-[#6C63FF] bg-[#6C63FF] px-3 py-1.5 text-xs text-white transition"
-                                    : "rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/65 transition hover:border-[#6C63FF]/60 hover:text-white"
+                          <label className="space-y-2">
+                            <Label className="text-xs text-white/55">
+                              分成比例
+                            </Label>
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                min="1"
+                                max="100"
+                                value={phase.sharePercent}
+                                onChange={(event) =>
+                                  updatePhaseRow(
+                                    phase.id,
+                                    "sharePercent",
+                                    event.target.value,
+                                  )
                                 }
-                              >
-                                {skill}
-                              </button>
-                            )
-                          })}
+                                placeholder="比例"
+                                className="h-11 border-white/10 bg-[#11111D] pr-8 text-white placeholder:text-white/35"
+                              />
+                              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-white/45">
+                                %
+                              </span>
+                            </div>
+                          </label>
                         </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-4">
-                  <Label className="text-white">收益分配</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={addRevenueRow}
-                    className="border-[#6C63FF]/50 bg-transparent text-[#6C63FF] hover:bg-[#6C63FF]/10 hover:text-white"
-                  >
-                    + 添加一行
-                  </Button>
-                </div>
-
-                <div className="space-y-3">
-                  {revenueRows.map((row) => (
-                    <div
-                      key={row.id}
-                      className="grid gap-3 rounded-xl border border-white/10 bg-black/20 p-4 md:grid-cols-[1fr_1fr_160px]"
-                    >
-                      <select
-                        value={row.role}
-                        onChange={(event) =>
-                          updateRevenueRow(row.id, "role", event.target.value)
-                        }
-                        className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
-                      >
-                        {roleOptions.map((role) => (
-                          <option
-                            key={role}
-                            value={role}
-                            className="bg-[#11111D]"
-                          >
-                            {role}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={row.contribution}
-                        onChange={(event) =>
-                          updateRevenueRow(
-                            row.id,
-                            "contribution",
-                            event.target.value,
-                          )
-                        }
-                        className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
-                      >
-                        {contributionOptions.map((contribution) => (
-                          <option
-                            key={contribution}
-                            value={contribution}
-                            className="bg-[#11111D]"
-                          >
-                            {contribution}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={row.percentage}
-                        onChange={(event) =>
-                          updateRevenueRow(
-                            row.id,
-                            "percentage",
-                            event.target.value,
-                          )
-                        }
-                        className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
-                      >
-                        {percentageOptions.map((percentage) => (
-                          <option
-                            key={percentage}
-                            value={percentage}
-                            className="bg-[#11111D]"
-                          >
-                            {percentage}%
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                      </CardContent>
+                    </Card>
                   ))}
                 </div>
               </div>
