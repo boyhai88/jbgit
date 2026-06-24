@@ -56,6 +56,14 @@ type Review = {
   created_at: string | null
 }
 
+type ProjectApplication = {
+  id: string | number
+  user_id: string | null
+  applicant_email: string | null
+  status: string | null
+  created_at: string | null
+}
+
 type Notice = {
   type: "success" | "error"
   title: string
@@ -131,6 +139,7 @@ export default function ProjectDetailPage() {
   const [earningRules, setEarningRules] = useState<EarningRule[]>([])
   const [milestones, setMilestones] = useState<Milestone[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
+  const [applications, setApplications] = useState<ProjectApplication[]>([])
   const [canReview, setCanReview] = useState(false)
   const [loadingProject, setLoadingProject] = useState(true)
   const [notice, setNotice] = useState<Notice | null>(null)
@@ -151,6 +160,7 @@ export default function ProjectDetailPage() {
         { data: earningsData },
         { data: milestonesData },
         { data: reviewsData },
+        { data: applicationsData },
         { data: applicationData },
       ] = await Promise.all([
         supabase.from("projects").select("*").eq("id", projectId).single(),
@@ -168,6 +178,11 @@ export default function ProjectDetailPage() {
           .select("*")
           .eq("project_id", projectId)
           .order("created_at", { ascending: false }),
+        supabase
+          .from("project_applications")
+          .select("id, user_id, status, created_at")
+          .eq("project_id", projectId)
+          .order("created_at", { ascending: false }),
         user
           ? supabase
               .from("project_applications")
@@ -178,14 +193,44 @@ export default function ProjectDetailPage() {
           : Promise.resolve({ data: null }),
       ])
 
+      const loadedProject = error || !projectData ? null : (projectData as Project)
+      const applicationRows = (applicationsData ?? []) as Array<{
+        id: string | number
+        user_id: string | null
+        status: string | null
+        created_at: string | null
+      }>
+      const applicantIds = Array.from(
+        new Set(
+          applicationRows
+            .map((application) => application.user_id)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      )
+      const { data: applicantUsersData } =
+        applicantIds.length > 0
+          ? await supabase.from("users").select("id, email").in("id", applicantIds)
+          : { data: [] }
+      const applicantEmailMap = new Map(
+        ((applicantUsersData ?? []) as Array<{ id: string; email: string | null }>).map(
+          (applicant) => [applicant.id, applicant.email],
+        ),
+      )
+      const applicationsWithUsers = applicationRows.map((application) => ({
+        ...application,
+        applicant_email: application.user_id
+          ? applicantEmailMap.get(application.user_id) ?? "未知邮箱"
+          : "未知邮箱",
+      }))
+
       if (!mounted) {
         return
       }
 
-      const loadedProject = error || !projectData ? null : (projectData as Project)
       setProject(loadedProject)
       setEarningRules((earningsData ?? []) as EarningRule[])
       setMilestones((milestonesData ?? []) as Milestone[])
+      setApplications(applicationsWithUsers)
       const visibleReviews = ((reviewsData ?? []) as Review[]).filter((review) => {
         if (review.status === "已通过") {
           return true
@@ -211,6 +256,7 @@ export default function ProjectDetailPage() {
       setEarningRules([])
       setMilestones([])
       setReviews([])
+      setApplications([])
       setCanReview(false)
       setLoadingProject(false)
     })
@@ -275,6 +321,45 @@ export default function ProjectDetailPage() {
       type: "success",
       title: "申请已提交，等待审核",
       message: "项目发起人审核后会与你联系。",
+    })
+  }
+
+  async function handleUpdateApplication(
+    applicationId: string | number,
+    status: "已通过" | "已拒绝",
+  ) {
+    if (!user || !project || project.user_id !== user.id) {
+      router.push("/auth/login")
+      return
+    }
+
+    setNotice(null)
+
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("project_applications")
+      .update({ status })
+      .eq("id", applicationId)
+      .eq("project_id", projectId)
+
+    if (error) {
+      setNotice({
+        type: "error",
+        title: "申请状态更新失败",
+        message: error.message,
+      })
+      return
+    }
+
+    setApplications((current) =>
+      current.map((application) =>
+        application.id === applicationId ? { ...application, status } : application,
+      ),
+    )
+    setNotice({
+      type: "success",
+      title: "申请状态已更新",
+      message: `申请已${status === "已通过" ? "通过" : "拒绝"}。`,
     })
   }
 
@@ -522,6 +607,97 @@ export default function ProjectDetailPage() {
                           >
                             {milestoneStatus}
                           </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-gray-800 bg-black/20 p-6 shadow-md">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-white">申请人列表</h2>
+                  <p className="mt-2 text-base leading-relaxed text-white/45">
+                    查看当前项目的申请人、申请时间和审核状态
+                  </p>
+                </div>
+                {isProjectOwner ? (
+                  <span className="rounded-full border border-[#6C63FF]/30 bg-[#6C63FF]/15 px-3 py-1 text-xs text-[#8D87FF]">
+                    项目所有者可审核
+                  </span>
+                ) : null}
+              </div>
+
+              {applications.length === 0 ? (
+                <div className="mt-6 rounded-xl border border-gray-800 bg-white/[0.03] p-5 text-base text-white/45">
+                  暂无申请人
+                </div>
+              ) : (
+                <div className="mt-6 space-y-4">
+                  {applications.map((application) => {
+                    const applicationStatus = application.status || "待审核"
+                    const statusClass =
+                      applicationStatus === "已通过"
+                        ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+                        : applicationStatus === "已拒绝"
+                          ? "border-red-500/40 bg-red-500/15 text-red-300"
+                          : "border-amber-500/40 bg-amber-500/15 text-amber-300"
+
+                    return (
+                      <div
+                        key={application.id}
+                        className="flex flex-col gap-4 rounded-xl border border-gray-800 bg-white/[0.03] p-5 shadow-md sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div>
+                          <p className="font-semibold text-white">
+                            {application.applicant_email || "未知邮箱"}
+                          </p>
+                          <p className="mt-2 text-sm text-white/35">
+                            申请时间：{formatDate(application.created_at)}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span
+                            className={cn(
+                              "rounded-full border px-3 py-1 text-xs font-medium",
+                              statusClass,
+                            )}
+                          >
+                            {applicationStatus}
+                          </span>
+                          {isProjectOwner ? (
+                            <>
+                              <Button
+                                type="button"
+                                disabled={applicationStatus === "已通过"}
+                                onClick={() =>
+                                  void handleUpdateApplication(
+                                    application.id,
+                                    "已通过",
+                                  )
+                                }
+                                className="bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
+                              >
+                                通过
+                              </Button>
+                              <Button
+                                type="button"
+                                disabled={applicationStatus === "已拒绝"}
+                                onClick={() =>
+                                  void handleUpdateApplication(
+                                    application.id,
+                                    "已拒绝",
+                                  )
+                                }
+                                variant="outline"
+                                className="border-red-500/40 bg-transparent text-red-200 hover:bg-red-500/10 hover:text-red-100"
+                              >
+                                拒绝
+                              </Button>
+                            </>
+                          ) : null}
                         </div>
                       </div>
                     )
