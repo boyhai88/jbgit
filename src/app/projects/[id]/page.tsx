@@ -351,15 +351,52 @@ export default function ProjectDetailPage() {
       return
     }
 
-    setApplications((current) =>
-      current.map((application) =>
-        application.id === applicationId ? { ...application, status } : application,
+    const { data: refreshedApplications } = await supabase
+      .from("project_applications")
+      .select("id, user_id, status, created_at")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: false })
+    const refreshedRows = (refreshedApplications ?? []) as Array<{
+      id: string | number
+      user_id: string | null
+      status: string | null
+      created_at: string | null
+    }>
+    const refreshedUserIds = Array.from(
+      new Set(
+        refreshedRows
+          .map((application) => application.user_id)
+          .filter((id): id is string => Boolean(id)),
       ),
+    )
+    const { data: refreshedUsers } =
+      refreshedUserIds.length > 0
+        ? await supabase
+            .from("users")
+            .select("id, email")
+            .in("id", refreshedUserIds)
+        : { data: [] }
+    const refreshedEmailMap = new Map(
+      ((refreshedUsers ?? []) as Array<{ id: string; email: string | null }>).map(
+        (applicant) => [applicant.id, applicant.email],
+      ),
+    )
+
+    setApplications(
+      refreshedRows.map((application) => ({
+        ...application,
+        applicant_email: application.user_id
+          ? refreshedEmailMap.get(application.user_id) ?? "未知邮箱"
+          : "未知邮箱",
+      })),
     )
     setNotice({
       type: "success",
-      title: "申请状态已更新",
-      message: `申请已${status === "已通过" ? "通过" : "拒绝"}。`,
+      title: status === "已通过" ? "审核成功" : "已拒绝",
+      message:
+        status === "已通过"
+          ? "申请状态已更新为已通过。"
+          : "申请状态已更新为已拒绝。",
     })
   }
 
