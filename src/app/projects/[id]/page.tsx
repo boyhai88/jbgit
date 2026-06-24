@@ -64,6 +64,13 @@ type ProjectApplication = {
   created_at: string | null
 }
 
+type EarningDraft = {
+  id?: string | number
+  role: string
+  contribution_type: string
+  share_percent: string
+}
+
 type Notice = {
   type: "success" | "error"
   title: string
@@ -148,6 +155,14 @@ export default function ProjectDetailPage() {
   const [reviewRating, setReviewRating] = useState("5")
   const [reviewCategory, setReviewCategory] = useState(reviewCategories[0])
   const [reviewComment, setReviewComment] = useState("")
+  const [showMilestoneDialog, setShowMilestoneDialog] = useState(false)
+  const [milestoneTitle, setMilestoneTitle] = useState("")
+  const [milestoneDescription, setMilestoneDescription] = useState("")
+  const [savingMilestone, setSavingMilestone] = useState(false)
+  const [showEarningsDialog, setShowEarningsDialog] = useState(false)
+  const [earningDrafts, setEarningDrafts] = useState<EarningDraft[]>([])
+  const [savingEarnings, setSavingEarnings] = useState(false)
+  const [showReviewDialog, setShowReviewDialog] = useState(false)
   const projectId = params.id
 
   useEffect(() => {
@@ -400,6 +415,158 @@ export default function ProjectDetailPage() {
     })
   }
 
+  async function handleCreateMilestone(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!user || !project || project.user_id !== user.id) {
+      router.push("/auth/login")
+      return
+    }
+
+    const title = milestoneTitle.trim()
+    const description = milestoneDescription.trim()
+
+    if (!title) {
+      setNotice({
+        type: "error",
+        title: "请填写里程碑标题",
+        message: "里程碑标题不能为空。",
+      })
+      return
+    }
+
+    setSavingMilestone(true)
+    setNotice(null)
+
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from("project_milestones")
+      .insert({
+        project_id: projectId,
+        title,
+        description,
+        status: "待开始",
+      })
+      .select("id, title, description, status, due_date")
+      .single()
+
+    setSavingMilestone(false)
+
+    if (error) {
+      setNotice({
+        type: "error",
+        title: "里程碑保存失败",
+        message: error.message,
+      })
+      return
+    }
+
+    setMilestones((current) => [...current, data as Milestone])
+    setMilestoneTitle("")
+    setMilestoneDescription("")
+    setShowMilestoneDialog(false)
+    setNotice({
+      type: "success",
+      title: "里程碑已添加",
+      message: "新里程碑已写入项目进度。",
+    })
+  }
+
+  function openEarningsDialog() {
+    setEarningDrafts(
+      earningRules.length > 0
+        ? earningRules.map((rule) => ({
+            id: rule.id,
+            role: rule.role ?? "",
+            contribution_type: rule.contribution_type ?? "",
+            share_percent: String(rule.share_percent ?? rule.percentage ?? ""),
+          }))
+        : [{ role: "", contribution_type: "", share_percent: "" }],
+    )
+    setShowEarningsDialog(true)
+  }
+
+  function updateEarningDraft(
+    index: number,
+    field: keyof EarningDraft,
+    value: string,
+  ) {
+    setEarningDrafts((current) =>
+      current.map((draft, draftIndex) =>
+        draftIndex === index ? { ...draft, [field]: value } : draft,
+      ),
+    )
+  }
+
+  async function handleSaveEarnings() {
+    if (!user || !project || project.user_id !== user.id) {
+      router.push("/auth/login")
+      return
+    }
+
+    const rows = earningDrafts
+      .map((draft) => ({
+        project_id: projectId,
+        user_id: user.id,
+        role: draft.role.trim(),
+        contribution_type: draft.contribution_type.trim(),
+        share_percent: Number(draft.share_percent),
+      }))
+      .filter(
+        (draft) =>
+          draft.role &&
+          draft.contribution_type &&
+          Number.isFinite(draft.share_percent),
+      )
+
+    setSavingEarnings(true)
+    setNotice(null)
+
+    const supabase = createClient()
+    const { error: deleteError } = await supabase
+      .from("project_earnings")
+      .delete()
+      .eq("project_id", projectId)
+
+    if (deleteError) {
+      setSavingEarnings(false)
+      setNotice({
+        type: "error",
+        title: "收益分配保存失败",
+        message: deleteError.message,
+      })
+      return
+    }
+
+    const { data, error } =
+      rows.length > 0
+        ? await supabase
+            .from("project_earnings")
+            .insert(rows)
+            .select("id, role, contribution_type, percentage, share_percent")
+        : { data: [], error: null }
+
+    setSavingEarnings(false)
+
+    if (error) {
+      setNotice({
+        type: "error",
+        title: "收益分配保存失败",
+        message: error.message,
+      })
+      return
+    }
+
+    setEarningRules((data ?? []) as EarningRule[])
+    setShowEarningsDialog(false)
+    setNotice({
+      type: "success",
+      title: "收益分配已保存",
+      message: "项目收益分配方案已更新。",
+    })
+    window.location.reload()
+  }
+
   async function handleSubmitReview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -457,6 +624,7 @@ export default function ProjectDetailPage() {
 
     setReviews((current) => [savedReview, ...current])
     setReviewComment("")
+    setShowReviewDialog(false)
     setNotice({
       type: "success",
       title: "评价已发布",
@@ -602,6 +770,7 @@ export default function ProjectDetailPage() {
                 {isProjectOwner ? (
                   <Button
                     type="button"
+                    onClick={() => setShowMilestoneDialog(true)}
                     className="bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
                   >
                     添加里程碑
@@ -754,6 +923,7 @@ export default function ProjectDetailPage() {
                 {isProjectOwner ? (
                   <Button
                     type="button"
+                    onClick={openEarningsDialog}
                     className="bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
                   >
                     管理收益分配
@@ -797,77 +967,15 @@ export default function ProjectDetailPage() {
                   </p>
                 </div>
                 {canReview ? (
-                  <span className="rounded-full border border-[#6C63FF]/30 bg-[#6C63FF]/15 px-3 py-1 text-xs text-[#8D87FF]">
+                  <Button
+                    type="button"
+                    onClick={() => setShowReviewDialog(true)}
+                    className="bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
+                  >
                     可发表评价
-                  </span>
+                  </Button>
                 ) : null}
               </div>
-
-              {canReview ? (
-                <form
-                  className="mt-6 rounded-xl border border-gray-800 bg-white/[0.03] p-5"
-                  onSubmit={handleSubmitReview}
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <label className="grid gap-2 text-sm text-white/70">
-                      评分
-                      <select
-                        value={reviewRating}
-                        onChange={(event) => setReviewRating(event.target.value)}
-                        className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
-                      >
-                        {[1, 2, 3, 4, 5].map((rating) => (
-                          <option
-                            key={rating}
-                            value={rating}
-                            className="bg-[#11111D]"
-                          >
-                            {rating} 星
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="grid gap-2 text-sm text-white/70">
-                      分类
-                      <select
-                        value={reviewCategory}
-                        onChange={(event) =>
-                          setReviewCategory(event.target.value)
-                        }
-                        className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
-                      >
-                        {reviewCategories.map((category) => (
-                          <option
-                            key={category}
-                            value={category}
-                            className="bg-[#11111D]"
-                          >
-                            {category}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-
-                  <Textarea
-                    value={reviewComment}
-                    onChange={(event) => setReviewComment(event.target.value)}
-                    placeholder="写下你的协作体验、交付反馈或专业评价"
-                    className="mt-4 min-h-28 border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
-                  />
-
-                  <div className="mt-4 flex justify-end">
-                    <Button
-                      type="submit"
-                      disabled={submittingReview}
-                      className="bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
-                    >
-                      {submittingReview ? "提交中..." : "发表评价"}
-                    </Button>
-                  </div>
-                </form>
-              ) : null}
 
               {reviews.length === 0 ? (
                 <div className="mt-6 rounded-xl border border-gray-800 bg-white/[0.03] p-5 text-base text-white/45">
@@ -949,6 +1057,267 @@ export default function ProjectDetailPage() {
           </CardContent>
         </Card>
       </section>
+
+      {showMilestoneDialog ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6">
+          <form
+            onSubmit={handleCreateMilestone}
+            className="w-full max-w-lg rounded-2xl border border-gray-800 bg-[#10101A] p-6 text-white shadow-2xl shadow-black/40"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-white">添加里程碑</h2>
+                <p className="mt-2 text-sm leading-6 text-white/45">
+                  输入里程碑标题和描述，保存后会写入项目进度。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMilestoneDialog(false)}
+                className="rounded-lg px-2 py-1 text-sm text-white/45 transition hover:bg-white/10 hover:text-white"
+              >
+                关闭
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <label className="grid gap-2 text-sm text-white/70">
+                里程碑标题
+                <input
+                  value={milestoneTitle}
+                  onChange={(event) => setMilestoneTitle(event.target.value)}
+                  className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
+                  placeholder="例如：完成 MVP 原型"
+                />
+              </label>
+              <label className="grid gap-2 text-sm text-white/70">
+                里程碑描述
+                <Textarea
+                  value={milestoneDescription}
+                  onChange={(event) =>
+                    setMilestoneDescription(event.target.value)
+                  }
+                  className="min-h-28 border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
+                  placeholder="描述目标、交付物或验收标准"
+                />
+              </label>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowMilestoneDialog(false)}
+                className="border-white/10 bg-transparent text-white hover:bg-white/10"
+              >
+                取消
+              </Button>
+              <Button
+                type="submit"
+                disabled={savingMilestone}
+                className="bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
+              >
+                {savingMilestone ? "保存中..." : "保存里程碑"}
+              </Button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {showEarningsDialog ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6">
+          <div className="max-h-[86vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-gray-800 bg-[#10101A] p-6 text-white shadow-2xl shadow-black/40">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-white">管理收益分配</h2>
+                <p className="mt-2 text-sm leading-6 text-white/45">
+                  添加、编辑或删除收益分配行，保存后会更新当前项目方案。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEarningsDialog(false)}
+                className="rounded-lg px-2 py-1 text-sm text-white/45 transition hover:bg-white/10 hover:text-white"
+              >
+                关闭
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {earningDrafts.map((draft, index) => (
+                <div
+                  key={draft.id ?? index}
+                  className="grid gap-3 rounded-xl border border-gray-800 bg-white/[0.03] p-4 md:grid-cols-[1fr_1fr_120px_auto]"
+                >
+                  <input
+                    value={draft.role}
+                    onChange={(event) =>
+                      updateEarningDraft(index, "role", event.target.value)
+                    }
+                    className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
+                    placeholder="角色名称"
+                  />
+                  <input
+                    value={draft.contribution_type}
+                    onChange={(event) =>
+                      updateEarningDraft(
+                        index,
+                        "contribution_type",
+                        event.target.value,
+                      )
+                    }
+                    className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
+                    placeholder="贡献类型"
+                  />
+                  <input
+                    value={draft.share_percent}
+                    onChange={(event) =>
+                      updateEarningDraft(
+                        index,
+                        "share_percent",
+                        event.target.value,
+                      )
+                    }
+                    type="number"
+                    min="0"
+                    max="100"
+                    className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
+                    placeholder="比例"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                      setEarningDrafts((current) =>
+                        current.filter((_, draftIndex) => draftIndex !== index),
+                      )
+                    }
+                    className="border-red-500/40 bg-transparent text-red-200 hover:bg-red-500/10 hover:text-red-100"
+                  >
+                    删除
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 flex flex-wrap justify-between gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  setEarningDrafts((current) => [
+                    ...current,
+                    { role: "", contribution_type: "", share_percent: "" },
+                  ])
+                }
+                className="border-[#6C63FF]/40 bg-transparent text-[#8D87FF] hover:bg-[#6C63FF]/10 hover:text-white"
+              >
+                添加一行
+              </Button>
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowEarningsDialog(false)}
+                  className="border-white/10 bg-transparent text-white hover:bg-white/10"
+                >
+                  取消
+                </Button>
+                <Button
+                  type="button"
+                  disabled={savingEarnings}
+                  onClick={() => void handleSaveEarnings()}
+                  className="bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
+                >
+                  {savingEarnings ? "保存中..." : "保存收益分配"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showReviewDialog ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6">
+          <form
+            className="w-full max-w-xl rounded-2xl border border-gray-800 bg-[#10101A] p-6 text-white shadow-2xl shadow-black/40"
+            onSubmit={handleSubmitReview}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-white">发表评价</h2>
+                <p className="mt-2 text-sm leading-6 text-white/45">
+                  评价会以待审核状态写入，审核通过后展示。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowReviewDialog(false)}
+                className="rounded-lg px-2 py-1 text-sm text-white/45 transition hover:bg-white/10 hover:text-white"
+              >
+                关闭
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2 text-sm text-white/70">
+                评分
+                <select
+                  value={reviewRating}
+                  onChange={(event) => setReviewRating(event.target.value)}
+                  className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
+                >
+                  {[1, 2, 3, 4, 5].map((rating) => (
+                    <option key={rating} value={rating} className="bg-[#11111D]">
+                      {rating} 星
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="grid gap-2 text-sm text-white/70">
+                分类
+                <select
+                  value={reviewCategory}
+                  onChange={(event) => setReviewCategory(event.target.value)}
+                  className="h-10 rounded-lg border border-white/10 bg-[#11111D] px-3 text-sm text-white outline-none transition focus:border-[#6C63FF] focus:ring-3 focus:ring-[#6C63FF]/20"
+                >
+                  {reviewCategories.map((category) => (
+                    <option key={category} value={category} className="bg-[#11111D]">
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <Textarea
+              value={reviewComment}
+              onChange={(event) => setReviewComment(event.target.value)}
+              placeholder="写下你的协作体验、交付反馈或专业评价"
+              className="mt-4 min-h-28 border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
+            />
+
+            <div className="mt-5 flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowReviewDialog(false)}
+                className="border-white/10 bg-transparent text-white hover:bg-white/10"
+              >
+                取消
+              </Button>
+              <Button
+                type="submit"
+                disabled={submittingReview}
+                className="bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
+              >
+                {submittingReview ? "提交中..." : "发表评价"}
+              </Button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </main>
   )
 }

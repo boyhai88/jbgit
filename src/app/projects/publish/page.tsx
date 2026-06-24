@@ -123,6 +123,14 @@ type RevenueRow = {
   percentage: string
 }
 
+type PhaseRow = {
+  id: number
+  name: string
+  headcount: string
+  skills: string[]
+  sharePercent: string
+}
+
 type Notice = {
   type: "success" | "error"
   title: string
@@ -164,6 +172,15 @@ export default function PublishProjectPage() {
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
   const [description, setDescription] = useState("")
   const [headcount, setHeadcount] = useState("1")
+  const [phaseRows, setPhaseRows] = useState<PhaseRow[]>([
+    {
+      id: 1,
+      name: "",
+      headcount: "1",
+      skills: [],
+      sharePercent: percentageOptions[3],
+    },
+  ])
   const [revenueRows, setRevenueRows] = useState<RevenueRow[]>([
     {
       id: 1,
@@ -221,6 +238,133 @@ export default function PublishProjectPage() {
         percentage: percentageOptions[3],
       },
     ])
+  }
+
+  function addPhaseRow() {
+    setPhaseRows((rows) => [
+      ...rows,
+      {
+        id: Date.now(),
+        name: "",
+        headcount: "1",
+        skills: [],
+        sharePercent: percentageOptions[3],
+      },
+    ])
+  }
+
+  function generateAiPhases() {
+    const text = description.trim()
+
+    if (!text) {
+      setNotice({
+        type: "error",
+        title: "请先填写项目描述",
+        message: "AI 自动拆分需要读取当前项目描述。",
+      })
+      return
+    }
+
+    const normalized = text.toLowerCase()
+    const skillPool = selectedSkills.length > 0 ? selectedSkills : presetSkills
+    const pickSkills = (preferred: string[]) => {
+      const matched = preferred.filter((skill) => skillPool.includes(skill))
+      const fallback = skillPool.filter((skill) => !matched.includes(skill))
+
+      return [...matched, ...fallback].slice(0, 3)
+    }
+    const hasAi = normalized.includes("ai") || normalized.includes("llm")
+    const hasWeb3 =
+      normalized.includes("web3") ||
+      normalized.includes("链") ||
+      normalized.includes("nft") ||
+      normalized.includes("defi")
+    const hasBackend =
+      normalized.includes("api") ||
+      normalized.includes("后端") ||
+      normalized.includes("数据库")
+
+    const generated: PhaseRow[] = [
+      {
+        id: Date.now(),
+        name: "需求梳理与技术方案",
+        headcount: "1",
+        skills: pickSkills(["产品", "TypeScript", "Node.js"]),
+        sharePercent: "15",
+      },
+      {
+        id: Date.now() + 1,
+        name: hasBackend ? "后端 API 与数据模型" : "核心功能开发",
+        headcount: hasBackend ? "2" : "1",
+        skills: pickSkills(["Node.js", "Python", "TypeScript"]),
+        sharePercent: "25",
+      },
+      {
+        id: Date.now() + 2,
+        name: hasAi
+          ? "AI 能力集成与调优"
+          : hasWeb3
+            ? "链上交互与合约集成"
+            : "前端界面与交互实现",
+        headcount: "2",
+        skills: hasAi
+          ? pickSkills(["AI/ML", "Python", "TypeScript"])
+          : hasWeb3
+            ? pickSkills(["Solidity", "Web3", "React"])
+            : pickSkills(["React", "TypeScript", "Next.js"]),
+        sharePercent: "30",
+      },
+      {
+        id: Date.now() + 3,
+        name: "测试验收与上线交付",
+        headcount: "1",
+        skills: pickSkills(["DevOps", "TypeScript", "Node.js"]),
+        sharePercent: "20",
+      },
+      {
+        id: Date.now() + 4,
+        name: "文档沉淀与运营支持",
+        headcount: "1",
+        skills: pickSkills(["产品", "React", "TypeScript"]),
+        sharePercent: "10",
+      },
+    ]
+
+    setPhaseRows(generated)
+    setNotice({
+      type: "success",
+      title: "AI 已自动拆分工序",
+      message: "已根据项目描述生成 5 个工序，可继续手动调整。",
+    })
+  }
+
+  function removePhaseRow(id: number) {
+    setPhaseRows((rows) => rows.filter((row) => row.id !== id))
+  }
+
+  function updatePhaseRow(
+    id: number,
+    field: keyof Omit<PhaseRow, "id" | "skills">,
+    value: string,
+  ) {
+    setPhaseRows((rows) =>
+      rows.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
+    )
+  }
+
+  function togglePhaseSkill(id: number, skill: string) {
+    setPhaseRows((rows) =>
+      rows.map((row) =>
+        row.id === id
+          ? {
+              ...row,
+              skills: row.skills.includes(skill)
+                ? row.skills.filter((item) => item !== skill)
+                : [...row.skills, skill],
+            }
+          : row,
+      ),
+    )
   }
 
   function updateRevenueRow(
@@ -294,6 +438,38 @@ export default function PublishProjectPage() {
           row.contribution_type.length > 0 ||
           row.share_percent.length > 0,
       )
+    const phases = phaseRows
+      .map((row) => ({
+        name: row.name.trim(),
+        headcount: row.headcount.trim(),
+        skills: row.skills,
+        share_percent: row.sharePercent.trim(),
+      }))
+      .filter(
+        (row) =>
+          row.name.length > 0 ||
+          row.share_percent.length > 0 ||
+          row.skills.length > 0,
+      )
+
+    const hasInvalidPhase = phases.some(
+      (phase) =>
+        !phase.name ||
+        !phase.headcount ||
+        Number(phase.headcount) <= 0 ||
+        phase.skills.length === 0 ||
+        !phase.share_percent ||
+        Number(phase.share_percent) <= 0,
+    )
+
+    if (hasInvalidPhase) {
+      setNotice({
+        type: "error",
+        title: "请完善工序信息",
+        message: "已填写的工序需要包含名称、所需人数、技能标签和分成比例。",
+      })
+      return
+    }
 
     if (
       !name ||
@@ -404,6 +580,35 @@ export default function PublishProjectPage() {
           type: "error",
           title: "收益分配保存失败",
           message: earningsError.message,
+        })
+        return
+      }
+    }
+
+    if (phases.length > 0) {
+      const phasePayload = phases.map((phase, index) => ({
+        project_id: project.id,
+        name: phase.name,
+        headcount: Number(phase.headcount),
+        skills: phase.skills,
+        share_percent: Number(phase.share_percent),
+        sort_order: index + 1,
+      }))
+
+      console.log("正在插入项目工序：", phasePayload)
+
+      const { error: phasesError } = await supabase
+        .from("project_phases")
+        .insert(phasePayload)
+
+      console.log("项目工序插入结果：", { phasesError })
+
+      if (phasesError) {
+        setSubmitting(false)
+        setNotice({
+          type: "error",
+          title: "工序保存失败",
+          message: phasesError.message,
         })
         return
       }
@@ -603,6 +808,122 @@ export default function PublishProjectPage() {
                     ),
                   )}
                 </select>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label className="text-white">工序管理</Label>
+                    <p className="mt-1 text-xs text-white/45">
+                      在团队设置后拆分项目工序，便于匹配对应技能和人数。
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button
+                      type="button"
+                      onClick={generateAiPhases}
+                      className="bg-[#6C63FF] text-white hover:bg-[#5B54E8]"
+                    >
+                      🤖 AI 自动拆分工序
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={addPhaseRow}
+                      className="border-[#6C63FF]/50 bg-transparent text-[#6C63FF] hover:bg-[#6C63FF]/10 hover:text-white"
+                    >
+                      + 添加工序
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {phaseRows.map((phase, index) => (
+                    <div
+                      key={phase.id}
+                      className="space-y-4 rounded-xl border border-white/10 bg-black/20 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium text-white/80">
+                          工序 {index + 1}
+                        </p>
+                        {phaseRows.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => removePhaseRow(phase.id)}
+                            className="text-xs text-red-300 transition hover:text-red-200"
+                          >
+                            删除
+                          </button>
+                        ) : null}
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-[1fr_140px_160px]">
+                        <Input
+                          value={phase.name}
+                          onChange={(event) =>
+                            updatePhaseRow(phase.id, "name", event.target.value)
+                          }
+                          placeholder="工序名称"
+                          className="border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
+                        />
+                        <Input
+                          type="number"
+                          min="1"
+                          value={phase.headcount}
+                          onChange={(event) =>
+                            updatePhaseRow(
+                              phase.id,
+                              "headcount",
+                              event.target.value,
+                            )
+                          }
+                          placeholder="所需人数"
+                          className="border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
+                        />
+                        <Input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={phase.sharePercent}
+                          onChange={(event) =>
+                            updatePhaseRow(
+                              phase.id,
+                              "sharePercent",
+                              event.target.value,
+                            )
+                          }
+                          placeholder="分成比例 %"
+                          className="border-white/10 bg-[#11111D] text-white placeholder:text-white/35"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-xs text-white/45">技能标签</p>
+                        <div className="flex flex-wrap gap-2">
+                          {presetSkills.map((skill) => {
+                            const selected = phase.skills.includes(skill)
+
+                            return (
+                              <button
+                                key={`${phase.id}-${skill}`}
+                                type="button"
+                                onClick={() => togglePhaseSkill(phase.id, skill)}
+                                className={
+                                  selected
+                                    ? "rounded-full border border-[#6C63FF] bg-[#6C63FF] px-3 py-1.5 text-xs text-white transition"
+                                    : "rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/65 transition hover:border-[#6C63FF]/60 hover:text-white"
+                                }
+                              >
+                                {skill}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="space-y-3">
