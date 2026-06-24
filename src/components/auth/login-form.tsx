@@ -1,12 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { useFormState, useFormStatus } from "react-dom"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
+import { useFormStatus } from "react-dom"
 
 import {
   loginWithGoogle,
-  loginWithPassword,
-  type AuthActionState,
 } from "@/app/auth/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getSafeRedirectPath } from "@/lib/auth/redirect"
+import { createClient } from "@/lib/supabase/client"
 
 function PasswordSubmitButton() {
   const { pending } = useFormStatus()
@@ -54,16 +55,40 @@ export function LoginForm({
   initialError?: string
   next?: string
 }) {
-  const [state, formAction] = useFormState<AuthActionState, FormData>(
-    loginWithPassword,
-    {},
-  )
+  const router = useRouter()
+  const [clientError, setClientError] = useState("")
   const safeNext = getSafeRedirectPath(next ?? "/")
-  const error = state.error ?? initialError
+  const error = clientError || initialError
   const registerHref =
     safeNext === "/"
       ? "/auth/register"
       : `/auth/register?next=${encodeURIComponent(safeNext)}`
+
+  async function handlePasswordLogin(formData: FormData) {
+    setClientError("")
+
+    const email = String(formData.get("email") ?? "").trim()
+    const password = String(formData.get("password") ?? "")
+
+    if (!email || !password) {
+      setClientError("请输入邮箱和密码。")
+      return
+    }
+
+    const supabase = createClient()
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (signInError) {
+      setClientError(signInError.message)
+      return
+    }
+
+    router.push(safeNext)
+    router.refresh()
+  }
 
   return (
     <Card className="w-full max-w-[460px] border-0 bg-transparent py-0 text-white shadow-none ring-0">
@@ -106,7 +131,7 @@ export function LoginForm({
             </div>
           </div>
 
-          <form action={formAction} className="space-y-4">
+          <form action={handlePasswordLogin} className="space-y-4">
             <input type="hidden" name="next" value={safeNext} />
 
             <div className="space-y-2">
